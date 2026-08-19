@@ -6,6 +6,7 @@ import { CombatStyleController, type CombatModeLabel, type CombatStyleResolution
 import { resolveTeleport, resolveTeleportComponent } from '../map/Teleport.js';
 import type { Loc } from '../model/Loc.js';
 import type { Npc } from '../model/Npc.js';
+import type { InvItem } from '../inventory/Inventory.js';
 
 const COM_MODE_VARP = 43;
 const RUN_VARP = 173;
@@ -210,6 +211,16 @@ export const Game = {
         }
 
         return Input.castOnLoc(comId, local.lx, local.lz, loc.snap.typecode);
+    },
+
+    async castOnItem(spell: string, item: InvItem): Promise<boolean> {
+        const root = reader.sideTabInterface(MAGIC_TAB);
+        const comId = reader.targetButtonByBase(root, spell);
+        if (comId === -1) {
+            return false;
+        }
+
+        return Input.castOnItem(comId, item.id, item.slot, item.snap.comId);
     },
 
     /**
