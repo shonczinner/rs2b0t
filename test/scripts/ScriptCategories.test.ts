@@ -23,6 +23,19 @@ test('the script selector renders Firemaker under its Firemaking filter', () => 
     expect(cards[0]?.querySelector('.rs2b0t-card-cat')?.textContent).toBe('Firemaking');
 });
 
+test('category chips list All first, then the rest alphabetically', () => {
+    document.body.replaceChildren();
+    const library = new ScriptLibrary(() => {});
+    library.open();
+
+    const labels = Array.from(document.querySelectorAll<HTMLButtonElement>('.rs2b0t-chip')).map(chip => chip.textContent!.replace(/ \(\d+\)$/, ''));
+    expect(labels[0]).toBe('All');
+    const rest = labels.slice(1);
+    expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b)));
+    expect(rest).toContain('Combat');
+    expect(rest.indexOf('Combat')).toBeLessThan(rest.indexOf('Woodcutting'));
+});
+
 test('Escape closes the open script selector and stops propagation to outer handlers', () => {
     document.body.replaceChildren();
     const library = new ScriptLibrary(() => {});

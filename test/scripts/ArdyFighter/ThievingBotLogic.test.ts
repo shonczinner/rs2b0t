@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
     autoFoodBanking,
+    canStealNow,
     countFood,
     foodMatches,
     nextWithdrawChunk,
@@ -44,6 +45,14 @@ describe('Thiever food banking', () => {
         expect(safeToSteal(0.49, 0.5, 0)).toBe(false);
         expect(safeToSteal(0.49, 0.5, 1)).toBe(true);
         expect(safeToSteal(0.5, 0.5, 0)).toBe(true);
+        expect(canStealNow(0, 4, 5, false)).toBe(false);
+        expect(canStealNow(1, 4, 5, false)).toBe(true);
+        expect(canStealNow(0, 6, 5, false)).toBe(true);
+    });
+
+    test('suicide thieving keeps stealing at low HP with no food', () => {
+        expect(canStealNow(0, 4, 5, true)).toBe(true);
+        expect(canStealNow(0, 1, 5, true)).toBe(true);
     });
 });
 

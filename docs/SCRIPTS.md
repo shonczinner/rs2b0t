@@ -914,6 +914,7 @@ Pickpockets an NPC (Man by default), eats after failed steals, and optionally ba
 | `banking` | string | `"None"` | Food banking — one of: None, Auto |
 | `foodWithdraw` | number (1–27) | `22` | Food to carry |
 | `bankAtFood` | number (0–26) | `0` | Bank at food remaining |
+| `suicide` | boolean | `false` | Suicide thieving |
 | `dropMatch` | string | `""` | Drop when full (name contains) |
 | `loot` | string | `"coins"` | Pick up from ground (name contains) |
 | `obstacle` | string | `"door, gate"` | Openable obstacles (name contains) |

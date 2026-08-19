@@ -2,8 +2,6 @@ import { loadFromFile, loadFromUrl, type LoadResult } from '../runtime/loader.js
 import { ScriptRegistry, type ScriptMeta } from '../runtime/ScriptRegistry.js';
 import { el } from './dom.js';
 
-const CATEGORY_ORDER = ['Combat', 'Woodcutting', 'Fishing', 'Mining', 'Cooking', 'Smithing', 'Fletching', 'Firemaking', 'Crafting', 'Herblore', 'Agility', 'Thieving', 'Runecrafting', 'Prayer', 'Magic', 'Navigation', 'Utility', 'Develop'];
-
 export default class ScriptLibrary {
     private backdrop: HTMLElement;
     private listEl: HTMLElement;
@@ -158,9 +156,7 @@ export default class ScriptLibrary {
         for (const m of ScriptRegistry.list()) {
             present.add(m.category ?? 'Other');
         }
-        const ordered = CATEGORY_ORDER.filter(c => present.has(c));
-        const rest = [...present].filter(c => !CATEGORY_ORDER.includes(c)).sort();
-        return ['All', ...ordered, ...rest];
+        return ['All', ...[...present].sort((a, b) => a.localeCompare(b))];
     }
 
     private renderChips(): void {

@@ -110,3 +110,8 @@ export function shouldRestockFood(enabled: boolean, foodCount: number, restockAt
 export function safeToSteal(hpFraction: number, eatAt: number, foodCount: number): boolean {
     return hpFraction >= eatAt || foodCount > 0;
 }
+
+/** Why: suicide thieving keeps pickpocketing instead of idling for regen when the pack is empty. */
+export function canStealNow(foodCount: number, hp: number, minEatHp: number, suicide: boolean): boolean {
+    return suicide || foodCount > 0 || hp > minEatHp;
+}
