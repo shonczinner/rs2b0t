@@ -5,10 +5,26 @@ import {
     ALCH_ITEMS,
     ALCH_OPTIONS,
     ALCH_OPTION_LABELS,
+    CUSTOM_ALCH_KEY,
     DEFAULT_ALCH_ITEMS,
+    HIGH_ALCH_LEVEL,
+    HIGH_ALCH_RATE,
+    HIGH_ALCH_SPELL,
+    LOW_ALCH_LEVEL,
+    LOW_ALCH_RATE,
+    LOW_ALCH_SPELL,
+    SPELL_HIGH,
+    SPELL_LOW,
+    SPELL_OPTIONS,
     alchItem,
+    alchValueOf,
+    customAlchItem,
     fmtGp,
+    FIRE_STAFF,
+    FIRE_STAVES,
     nextAlchTarget,
+    resolveAlchSpell,
+    pickFireStaff,
     selectedAlchItems
 } from '#/bot/scripts/Alcher/AlcherLogic.js';
 
@@ -22,7 +38,7 @@ describe('the fodder table resolves against the item database', () => {
     test('the alch value is 60% of the shop cost, rounded down', () => {
         for (const item of ALCH_ITEMS) {
             const rec = ITEM_DB.find(r => r.obj === item.key);
-            expect(item.alchValue).toBe(Math.floor(rec!.cost * 0.6));
+            expect(item.alchValue).toBe(Math.floor(rec!.cost * HIGH_ALCH_RATE));
         }
     });
 
@@ -68,6 +84,45 @@ describe('labels disambiguate what the client name does not', () => {
     });
 });
 
+describe('the custom chip', () => {
+    test('is the first option and says where its item comes from', () => {
+        expect(ALCH_OPTIONS[0]).toBe(CUSTOM_ALCH_KEY);
+        expect(ALCH_OPTION_LABELS[CUSTOM_ALCH_KEY]).toBe('Custom item (named below)');
+        expect(ALCH_ITEMS.some(i => i.key === CUSTOM_ALCH_KEY)).toBe(false);
+    });
+
+    test('resolves a display name from the item database at 60% of shop cost', () => {
+        expect(customAlchItem('Iron platebody')).toEqual({
+            key: 'iron_platebody',
+            id: 1115,
+            name: 'Iron platebody',
+            label: 'Iron platebody',
+            alchValue: 336
+        });
+    });
+
+    test('accepts the obj name, any case, with stray spaces', () => {
+        expect(customAlchItem(' IRON_PLATEBODY ')?.id).toBe(1115);
+        expect(customAlchItem('iron  platebody')?.id).toBe(1115);
+    });
+
+    test('a name already in the fodder table resolves to that entry, label and all', () => {
+        expect(customAlchItem("Black d'hide body")).toBe(alchItem('black_dragonhide_body'));
+        expect(customAlchItem('rune_chainbody')).toBe(alchItem('rune_chainbody'));
+    });
+
+    test('a client name several items share goes to the obj spelled the same way', () => {
+        expect(customAlchItem('Dragonhide body')?.key).toBe('dragonhide_body');
+        expect(customAlchItem('Dragonhide chaps')?.key).toBe('dragonhide_chaps');
+    });
+
+    test('an unknown or blank name is null', () => {
+        expect(customAlchItem('nonsense')).toBeNull();
+        expect(customAlchItem('')).toBeNull();
+        expect(customAlchItem('   ')).toBeNull();
+    });
+});
+
 describe('defaults', () => {
     test('every default is a real option', () => {
         for (const key of DEFAULT_ALCH_ITEMS) {
@@ -105,6 +160,30 @@ describe('selectedAlchItems', () => {
     test('a selection of nothing but junk falls back to the defaults', () => {
         expect(selectedAlchItems(['nonsense']).map(i => i.key).sort()).toEqual([...DEFAULT_ALCH_ITEMS].sort());
     });
+
+    test('the custom chip adds the named item, slotted by value with the rest', () => {
+        const picked = selectedAlchItems([CUSTOM_ALCH_KEY, 'yew_longbow', 'magic_longbow'], 'Rune platebody');
+        expect(picked.map(i => i.key)).toEqual(['rune_platebody', 'magic_longbow', 'yew_longbow']);
+    });
+
+    test('an item outside the fodder table drains last when it is the cheapest', () => {
+        const picked = selectedAlchItems([CUSTOM_ALCH_KEY, 'maple_longbow'], 'Iron platebody');
+        expect(picked.map(i => i.key)).toEqual(['maple_longbow', 'iron_platebody']);
+    });
+
+    test('a custom item that is also ticked as a chip is listed once', () => {
+        expect(selectedAlchItems([CUSTOM_ALCH_KEY, 'yew_longbow'], 'Yew longbow').map(i => i.key)).toEqual(['yew_longbow']);
+    });
+
+    test('the custom chip alone with a name the database lacks selects nothing, never the defaults', () => {
+        expect(selectedAlchItems([CUSTOM_ALCH_KEY], 'nonsense')).toEqual([]);
+        expect(selectedAlchItems([CUSTOM_ALCH_KEY], '')).toEqual([]);
+    });
+
+    test('the custom name is ignored while its chip is clear', () => {
+        expect(selectedAlchItems(['yew_longbow'], 'Rune platebody').map(i => i.key)).toEqual(['yew_longbow']);
+        expect(selectedAlchItems([], 'Rune platebody').map(i => i.key).sort()).toEqual([...DEFAULT_ALCH_ITEMS].sort());
+    });
 });
 
 describe('nextAlchTarget', () => {
@@ -141,5 +220,61 @@ describe('fmtGp', () => {
 
     test('rounds rather than truncating a fractional rate', () => {
         expect(fmtGp(999.6)).toBe('1.0k');
+    });
+});
+
+describe('the spell setting', () => {
+    test('High is the default, so a missing setting keeps saved items and alchs working', () => {
+        expect(resolveAlchSpell('')).toEqual({
+            key: SPELL_HIGH,
+            name: HIGH_ALCH_SPELL,
+            level: HIGH_ALCH_LEVEL,
+            rate: HIGH_ALCH_RATE
+        });
+        expect(resolveAlchSpell('High').name).toBe(HIGH_ALCH_SPELL);
+        expect(resolveAlchSpell('high level alchemy').name).toBe(HIGH_ALCH_SPELL);
+    });
+
+    test('Low maps to Low Level Alchemy at 21 Magic and 40% of shop cost', () => {
+        expect(resolveAlchSpell('Low')).toEqual({
+            key: SPELL_LOW,
+            name: LOW_ALCH_SPELL,
+            level: LOW_ALCH_LEVEL,
+            rate: LOW_ALCH_RATE
+        });
+        expect(resolveAlchSpell('low level alchemy').name).toBe(LOW_ALCH_SPELL);
+        expect(resolveAlchSpell('lowalch').level).toBe(LOW_ALCH_LEVEL);
+    });
+
+    test('a yew longbow pays 512 under Low and 768 under High', () => {
+        const cost = ITEM_DB.find(r => r.obj === 'yew_longbow')!.cost;
+        expect(alchValueOf(cost, HIGH_ALCH_RATE)).toBe(768);
+        expect(alchValueOf(cost, LOW_ALCH_RATE)).toBe(512);
+        expect(selectedAlchItems(['yew_longbow'], '', LOW_ALCH_RATE)[0]?.alchValue).toBe(512);
+    });
+
+    test('the bundled Alcher defaults spell to High and leaves items and alchs alone', async () => {
+        const { ScriptRegistry } = await import('#/bot/runtime/ScriptRegistry.js');
+        await import('#/bot/scripts/index.js');
+        const schema = ScriptRegistry.get('Alcher')?.settingsSchema;
+        expect(schema?.spell).toMatchObject({
+            type: 'string',
+            default: SPELL_HIGH,
+            options: SPELL_OPTIONS
+        });
+        expect(schema?.items?.default).toEqual(DEFAULT_ALCH_ITEMS);
+        expect(schema?.alchs?.default).toBe(27);
+    });
+});
+
+describe('pickFireStaff', () => {
+    test('Staff of fire is first so a bank that has both keeps the old withdraw', () => {
+        expect(FIRE_STAVES[0]).toBe(FIRE_STAFF);
+        expect(pickFireStaff(name => name === 'Fire battlestaff' || name === 'Staff of fire')).toBe('Staff of fire');
+    });
+
+    test('accepts a Fire battlestaff on its own', () => {
+        expect(pickFireStaff(name => name === 'Fire battlestaff')).toBe('Fire battlestaff');
+        expect(pickFireStaff(() => false)).toBeUndefined();
     });
 });

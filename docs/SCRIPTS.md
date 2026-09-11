@@ -5,7 +5,7 @@
 
 # Bundled scripts
 
-- Scripts: 60. Categories: 20.
+- Scripts: 61. Categories: 20.
 - Source: [`src/bot/scripts/`](../src/bot/scripts/). API: [scripting API](API.md).
 - Settings are the parameters the panel exposes before a script starts.
 
@@ -21,7 +21,7 @@
 - [Herblore](#herblore) — 5
 - [Magic](#magic) — 2
 - [Mining](#mining) — 3
-- [Money making](#money-making) — 3
+- [Money making](#money-making) — 4
 - [Navigation](#navigation) — 2
 - [Prayer](#prayer) — 1
 - [Quest](#quest) — 3
@@ -546,7 +546,8 @@ Fishes a chosen method at the spot that offers it; banks the catch, optionally c
 | `baitQty` | number (1–) | `1000` | Bait / feathers qty |
 | `leashRadius` | number (2–64) | `18` | Leash radius (tiles) |
 | `tickManip` | string | `"Off"` | Tick manip — one of: Off |
-| `location` | string | `"Use Closest"` | Location / full inventory — one of: Use Closest, Use Start Position, Use Custom Position, Draynor Village, Catherby, Fishing Guild, Barbarian Village, Seers (fly fishing), Karamja (Musa Point), Taverley Dungeon (lava eels), Gnome Stronghold (fishing) |
+| `guildFeatherMinutes` | number (0–120) | `0` | Shilo supply trip every (minutes) |
+| `location` | string | `"Use Closest"` | Location / full inventory — one of: Use Closest, Use Start Position, Use Custom Position, Draynor Village, Catherby, Fishing Guild, Barbarian Village, Seers (fly fishing), Karamja (Musa Point), Taverley Dungeon (lava eels), Gnome Stronghold (fishing), Shilo Village |
 | `cookMode` | string | `"Off"` | Cook mode — one of: Off, Cook then bank, Bank raw then cook |
 | `cookFish` | string | `"All raw"` | Fish to cook — one of: All raw, Tuna, Swordfish, Lobster, Shark, Salmon, Trout, Shrimps, Anchovies, Custom |
 | `cookFishCustom` | string | `""` | Custom cook filter |
@@ -570,11 +571,11 @@ Bank-standing fletcher — keeps the knife (or bow string), Make-X logs into sha
 
 | Setting | Type | Default | Notes |
 |---|---|---|---|
+| `mode` | string | `"auto"` | Fletch mode — one of: auto (from product), cut logs, string bows, cut+string |
 | `material` | string | `"Logs"` | Log type — one of: Logs, Oak logs, Willow logs, Maple logs, Yew logs, Magic logs |
 | `product` | string | `"Arrow shafts"` | Fletch product — one of: Arrow shafts, Short bow, Long bow, String short bow, String long bow, Headless arrows, Bronze arrows, Iron arrows, Steel arrows, Mithril arrows, Adamant arrows, Rune arrows |
 | `bankStand` | tile | `{"x":3185,"z":3440,"level":0}` | Bank stand tile (x,z) |
 | `bankBooth` | string | `"Bank booth"` | Bank booth loc name |
-| `leashRadius` | number (2–20) | `6` | Booth search radius (tiles) |
 
 ### DartFletcher
 
@@ -660,13 +661,15 @@ Automated teleportation with intelligent banking and safety features
 
 ### Alcher
 
-High alchemy loop — tick the items to alch and the bot drains them richest first, withdrawing each as notes and casting High Level Alchemy (fire staff + nature runes) until the bank is out, then moving to the next
+Alchemy loop — tick the items to alch and the bot drains them richest first, withdrawing each as notes and casting High or Low Level Alchemy (fire staff + nature runes) until the bank is out, then moving to the next
 
-- Tags: `magic`, `high alchemy`, `alchemy`, `banking`, `noted`
+- Tags: `magic`, `high alchemy`, `low alchemy`, `alchemy`, `banking`, `noted`
 
 | Setting | Type | Default | Notes |
 |---|---|---|---|
-| `items` | string[] | `["black_dragonhide_body","red_dragonhide_body","blue_dragonhide_body","dragonhide_body","black_dragonhide_chaps","red_dragonhide_chaps","blue_dragonhide_chaps","dragonhide_chaps","magic_longbow","steel_platebody","yew_longbow"]` | Items to alch — one of: Rune platebody (39,000), Rune 2h sword (38,400), Rune platelegs (38,400), Rune kiteshield (32,640), Rune chainbody (30,000), Rune sq shield (23,040), Rune full helm (21,120), Rune scimitar (15,360), Air battlestaff (9,300), Earth battlestaff (9,300), Fire battlestaff (9,300), Water battlestaff (9,300), Black d'hide body (8,088), Adamant platebody (7,680), Red d'hide body (6,738), Blue d'hide body (5,616), Green d'hide body (4,680), Battlestaff (4,200), Adamant 2h sword (3,840), Adamant platelegs (3,840), Black d'hide chaps (3,732), Adamant kiteshield (3,264), Mithril platebody (3,120), Red d'hide chaps (3,108), Blue d'hide chaps (2,592), Green d'hide chaps (2,340), Black platebody (2,304), Mithril 2h sword (1,560), Mithril platelegs (1,560), Magic longbow (1,536), Mithril kiteshield (1,326), Steel platebody (1,200), Yew longbow (768), Steel 2h sword (600), Steel platelegs (600), Maple longbow (384) |
+| `spell` | string | `"High"` | Spell — one of: High Level Alchemy, Low Level Alchemy |
+| `items` | string[] | `["black_dragonhide_body","red_dragonhide_body","blue_dragonhide_body","dragonhide_body","black_dragonhide_chaps","red_dragonhide_chaps","blue_dragonhide_chaps","dragonhide_chaps","magic_longbow","steel_platebody","yew_longbow"]` | Items to alch — one of: Custom item (named below), Rune platebody (39,000), Rune 2h sword (38,400), Rune platelegs (38,400), Rune kiteshield (32,640), Rune chainbody (30,000), Rune sq shield (23,040), Rune full helm (21,120), Rune scimitar (15,360), Air battlestaff (9,300), Earth battlestaff (9,300), Fire battlestaff (9,300), Water battlestaff (9,300), Black d'hide body (8,088), Adamant platebody (7,680), Red d'hide body (6,738), Blue d'hide body (5,616), Green d'hide body (4,680), Battlestaff (4,200), Adamant 2h sword (3,840), Adamant platelegs (3,840), Black d'hide chaps (3,732), Adamant kiteshield (3,264), Mithril platebody (3,120), Red d'hide chaps (3,108), Blue d'hide chaps (2,592), Green d'hide chaps (2,340), Black platebody (2,304), Mithril 2h sword (1,560), Mithril platelegs (1,560), Magic longbow (1,536), Mithril kiteshield (1,326), Steel platebody (1,200), Yew longbow (768), Steel 2h sword (600), Steel platelegs (600), Maple longbow (384) |
+| `customItem` | string | `""` | Custom item |
 | `alchs` | number (1–1000) | `27` | Alchs per trip |
 
 ## Mining
@@ -710,6 +713,17 @@ Mines the selected rock types, then banks the ore at the nearest bank or drops i
 | `packJunk` | string | `"Bank"` | Event junk while gathering — one of: Bank, Drop, Off |
 
 ## Money making
+
+### ClimbingBoots
+
+Falador West to Tenzing climbing-boot buyer. Withdraws exact gp so the last pair replaces the coin stack. Optional Falador teleport runes for the walk back. Needs Death Plateau complete.
+
+- Tags: `tenzing`, `climbing boots`, `burthorpe`, `falador`, `bank`, `teleport`
+
+| Setting | Type | Default | Notes |
+|---|---|---|---|
+| `useTeleport` | boolean | `true` | Falador teleport back to bank |
+| `runeStock` | number (1–1000) | `50` | Falador teles of runes to carry |
 
 ### MarketMaker
 
@@ -901,7 +915,7 @@ Varrock anvil smithing — withdraw bars + a hammer, make the chosen item at the
 
 | Setting | Type | Default | Notes |
 |---|---|---|---|
-| `bar` | string | `"Bronze"` | Bar tier — one of: Bronze, Iron, Steel, Mithril, Adamant, Rune |
+| `bar` | string | `"Bronze"` | Bar tier — one of: Bronze, Iron, Steel, Mithril, Adamantite, Runite |
 | `product` | string | `"Dagger"` | Item to smith — one of: Dagger, Sword, Scimitar, Longsword, 2h sword, Axe, Mace, Warhammer, Battleaxe, Chainbody, Platelegs, Plateskirt, Platebody, Med helm, Full helm, Sq shield, Kiteshield, Nails, Dart tip, Arrowtips, Knife, Wire, Claws |
 | `anvilStand` | tile | `{"x":3188,"z":3425,"level":0}` | Anvil stand tile (x,z) |
 | `bankStand` | tile | `{"x":3185,"z":3440,"level":0}` | Bank stand tile (x,z) |

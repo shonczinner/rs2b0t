@@ -1,4 +1,32 @@
 import { describe, expect, test } from 'bun:test';
+import { baitTripDue, featherBuyoutDue, BAIT_RETRY_MINUTES } from '#/bot/scripts/GatheringBot/GatheringBotLogic.js';
+
+describe('Shilo supply cadence', () => {
+    test('starts immediately and honors the configured interval, including disabled', () => {
+        expect(featherBuyoutDue(null, 15, 0)).toBe(true);
+        expect(featherBuyoutDue(0, 15, 14 * 60000)).toBe(false);
+        expect(featherBuyoutDue(0, 15, 15 * 60000)).toBe(true);
+        expect(featherBuyoutDue(null, 0, 999 * 60000)).toBe(false);
+        expect(featherBuyoutDue(0, 5, 5 * 60000)).toBe(true);
+    });
+    const due = (over: Partial<Parameters<typeof baitTripDue>[0]> = {}) => baitTripDue({
+        hasVendor: true, outOfBait: false, lastAtMs: null, intervalMinutes: 0, nowMs: 0, ...over
+    });
+    test('never sends camps without a vendor', () => {
+        expect(due({ hasVendor: false, outOfBait: true, intervalMinutes: 15 })).toBe(false);
+    });
+    test('retries missing bait after a minute even with the scheduled trip disabled', () => {
+        expect(due({ outOfBait: true })).toBe(true);
+        expect(due({ outOfBait: true, lastAtMs: 0, nowMs: 30000 })).toBe(false);
+        expect(due({ outOfBait: true, lastAtMs: 0, nowMs: BAIT_RETRY_MINUTES * 60000 })).toBe(true);
+        expect(due()).toBe(false);
+    });
+    test('sends scheduled trips even with bait already held', () => {
+        expect(due({ intervalMinutes: 15 })).toBe(true);
+        expect(due({ intervalMinutes: 15, lastAtMs: 0, nowMs: 14 * 60000 })).toBe(false);
+        expect(due({ intervalMinutes: 15, lastAtMs: 0, nowMs: 15 * 60000 })).toBe(true);
+    });
+});
 import {
     DEFAULT_CHASE_RADIUS,
     HOME_ARRIVE_RADIUS,
@@ -10,6 +38,8 @@ import {
     gatherHuntRadius,
     gatherSpotRangeOrigin,
     hostileAttackerNearby,
+    locGatherShouldYield,
+    entAbortAction,
     shouldFleeCombat,
     isAutoLocation,
     pickNearestPreferLocal,
@@ -445,6 +475,37 @@ describe('shouldYieldGathering', () => {
         expect(shouldYieldGathering(false, true, false, false, true, true)).toBe(true);
         expect(shouldYieldGathering(false, false, true, false, true, true)).toBe(true);
         expect(shouldYieldGathering(false, false, false, true, true, true)).toBe(true);
+    });
+});
+
+describe('locGatherShouldYield (Ent / smoking rock on the clicked tile)', () => {
+    const calm = {
+        eventPending: false,
+        inventoryFull: false,
+        dialogPending: false,
+        inCombat: false,
+        allowCombatGather: false,
+        shouldEatMinerFood: false,
+        clickedTileHazard: false,
+        noResourceInCamp: false
+    };
+
+    test('an Ent on the clicked tile yields even when other trees remain', () => {
+        expect(locGatherShouldYield({ ...calm, clickedTileHazard: true })).toBe(true);
+        expect(locGatherShouldYield(calm)).toBe(false);
+    });
+
+    test('other trees in camp are not treated as an empty grove', () => {
+        expect(locGatherShouldYield({ ...calm, noResourceInCamp: false, clickedTileHazard: false })).toBe(false);
+        expect(locGatherShouldYield({ ...calm, noResourceInCamp: true })).toBe(true);
+    });
+});
+
+describe('entAbortAction', () => {
+    test('chops a neighbour in reach, else walks, else steps off', () => {
+        expect(entAbortAction({ neighbourInReach: true, neighbourExists: true })).toBe('chop-neighbour');
+        expect(entAbortAction({ neighbourInReach: false, neighbourExists: true })).toBe('walk-to-neighbour');
+        expect(entAbortAction({ neighbourInReach: false, neighbourExists: false })).toBe('step-off');
     });
 });
 

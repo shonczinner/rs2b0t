@@ -170,7 +170,7 @@ import {
     toolRestockPlan,
     toolsNeedingEquip
 } from '../api/acquisition/Tools.js';
-import { Traversal } from '../api/walking/Traversal.js';
+import { NAV_PURE_WALK, NAV_WITH_TELES, Traversal } from '../api/walking/Traversal.js';
 import { Reachability } from '../event/webwalk/geometry/Reachability.js';
 import {
     WALK_DESTINATIONS,
@@ -180,7 +180,11 @@ import {
 import {
     WOODCUTTING_LOCATIONS,
     WOODCUTTING_LOCATION_OPTIONS,
-    resolveWoodcuttingLocation
+    resolveWoodcuttingLocation,
+    ENT_NPC_IDS,
+    ENT_LIFE_TICKS,
+    isEntNpcId,
+    entNpcOnTile
 } from '../data/woodcuttingLocations.js';
 import { GroundItem } from '../api/model/GroundItem.js';
 import { Loc } from '../api/model/Loc.js';
@@ -239,6 +243,8 @@ export function installAbi(): void {
         Tile,
         Area,
         Traversal,
+        NAV_PURE_WALK,
+        NAV_WITH_TELES,
         DirectNavigator,
         /** Client-side reachability probes, for a harness asking what this pocket can walk to. */
         Reachability,
@@ -383,6 +389,10 @@ export function installAbi(): void {
         WOODCUTTING_LOCATIONS,
         WOODCUTTING_LOCATION_OPTIONS,
         resolveWoodcuttingLocation,
+        ENT_NPC_IDS,
+        ENT_LIFE_TICKS,
+        isEntNpcId,
+        entNpcOnTile,
 
         // Fishing methods + mining rocks
         WHIRLPOOL_IDS,

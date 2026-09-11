@@ -69,6 +69,7 @@ import HerbloreSecondaries, { HERBLORE_SECONDARIES_SETTINGS } from './HerbloreSe
 import HerbCleaner, { HERB_CLEANER_SETTINGS } from './HerbCleaner/HerbCleaner.js';
 import PotionMaker, { POTION_MAKER_SETTINGS } from './PotionMaker/PotionMaker.js';
 import MarketMaker, { MARKET_MAKER_SETTINGS } from './MarketMaker/MarketMaker.js';
+import ClimbingBoots, { CLIMBING_BOOTS_SETTINGS } from './ClimbingBoots/ClimbingBoots.js';
 import ShopBuyout, { SHOPBUYOUT_SETTINGS } from './ShopBuyout/ShopBuyout.js';
 import FlaxRunner, { SETTINGS as FLAXRUNNER_SETTINGS } from './FlaxRunner/FlaxRunner.js';
 import { ShopRunner, SHOPRUNNER_SETTINGS } from './ShopRunner/ShopRunner.js';
@@ -390,6 +391,15 @@ ScriptRegistry.register({
             group: 'Tick manip',
             help: TICK_MANIP_UNSHIPPED_HELP
         },
+        guildFeatherMinutes: {
+            type: 'number',
+            default: 0,
+            min: 0,
+            max: 120,
+            label: 'Shilo supply trip every (minutes)',
+            showIf: { key: 'location', anyOf: ['Shilo Village'] },
+            help: 'Banks the catch, buys feathers from Fernahei first, then affordable water vials from Obli, banks the vials and returns to fishing. 0 disables scheduled trips; running out of feathers still triggers a paced supply trip.'
+        },
         location: {
             type: 'string',
             default: 'Use Closest',
@@ -569,9 +579,9 @@ ScriptRegistry.register({
 
 ScriptRegistry.register({
     name: 'Alcher',
-    description: 'High alchemy loop — tick the items to alch and the bot drains them richest first, withdrawing each as notes and casting High Level Alchemy (fire staff + nature runes) until the bank is out, then moving to the next',
+    description: 'Alchemy loop — tick the items to alch and the bot drains them richest first, withdrawing each as notes and casting High or Low Level Alchemy (fire staff + nature runes) until the bank is out, then moving to the next',
     category: 'Magic',
-    tags: ['magic', 'high alchemy', 'alchemy', 'banking', 'noted'],
+    tags: ['magic', 'high alchemy', 'low alchemy', 'alchemy', 'banking', 'noted'],
     settingsSchema: ALCHER_SETTINGS,
     create: () => new Alcher()
 });
@@ -675,6 +685,16 @@ ScriptRegistry.register({
     tags: ['trading', 'shop', 'bank', 'chat', 'afk'],
     settingsSchema: MARKET_MAKER_SETTINGS,
     create: () => new MarketMaker()
+});
+
+ScriptRegistry.register({
+    name: 'ClimbingBoots',
+    description:
+        'Falador West to Tenzing climbing-boot buyer. Withdraws exact gp so the last pair replaces the coin stack. Optional Falador teleport runes for the walk back. Needs Death Plateau complete.',
+    category: 'Money making',
+    tags: ['tenzing', 'climbing boots', 'burthorpe', 'falador', 'bank', 'teleport'],
+    settingsSchema: CLIMBING_BOOTS_SETTINGS,
+    create: () => new ClimbingBoots()
 });
 
 ScriptRegistry.register({

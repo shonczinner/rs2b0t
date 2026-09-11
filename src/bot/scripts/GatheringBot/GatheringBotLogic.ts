@@ -5,6 +5,25 @@
 import { wildernessLevelAt, type WildTile } from '../../event/webwalk/wilderness.js';
 import { combatBreaksGather } from './TickManipLogic.js';
 
+export function featherBuyoutDue(lastAtMs: number | null, intervalMinutes: number, nowMs: number): boolean {
+    if (intervalMinutes <= 0) return false;
+    return lastAtMs === null || nowMs - lastAtMs >= intervalMinutes * 60_000;
+}
+
+export const BAIT_RETRY_MINUTES = 1;
+
+export function baitTripDue(input: {
+    readonly hasVendor: boolean;
+    readonly outOfBait: boolean;
+    readonly lastAtMs: number | null;
+    readonly intervalMinutes: number;
+    readonly nowMs: number;
+}): boolean {
+    if (!input.hasVendor) return false;
+    if (featherBuyoutDue(input.lastAtMs, input.intervalMinutes, input.nowMs)) return true;
+    return input.outOfBait && featherBuyoutDue(input.lastAtMs, BAIT_RETRY_MINUTES, input.nowMs);
+}
+
 type GatheringCombatMode =
     | 'standard'
     | 'desert-camp-miner-npc'
@@ -147,6 +166,44 @@ export function shouldYieldGathering(
         targetGone ||
         combatBreaksGather(inCombat, allowCombat)
     );
+}
+
+export function locGatherShouldYield(opts: {
+    eventPending: boolean;
+    inventoryFull: boolean;
+    dialogPending: boolean;
+    inCombat: boolean;
+    allowCombatGather: boolean;
+    shouldEatMinerFood: boolean;
+    /** Smoking rock or Ent on the loc tile we clicked. */
+    clickedTileHazard: boolean;
+    noResourceInCamp: boolean;
+}): boolean {
+    if (opts.eventPending || opts.inventoryFull || opts.dialogPending) {
+        return true;
+    }
+    if (opts.shouldEatMinerFood) {
+        return true;
+    }
+    if (combatBreaksGather(opts.inCombat, opts.allowCombatGather)) {
+        return true;
+    }
+    if (opts.clickedTileHazard) {
+        return true;
+    }
+    return opts.noResourceInCamp;
+}
+
+export type EntAbortAction = 'chop-neighbour' | 'walk-to-neighbour' | 'step-off';
+
+export function entAbortAction(opts: { neighbourInReach: boolean; neighbourExists: boolean }): EntAbortAction {
+    if (opts.neighbourInReach) {
+        return 'chop-neighbour';
+    }
+    if (opts.neighbourExists) {
+        return 'walk-to-neighbour';
+    }
+    return 'step-off';
 }
 
 export function fishingSessionBroken(opts: {
