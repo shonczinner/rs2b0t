@@ -1477,11 +1477,7 @@ export default class GatheringBot extends TaskBot {
         });
     }
 
-    /**
-     * The stand / destination the Bank location setting points at.
-     * Auto = the camp's own bankStand when a location resolved, else the nearest bank (Use Start / Custom Position).
-     * Nearest = always the nearest bank. A named choice forces that exact bank.
-     */
+    /** The stand / destination the Bank location setting points at: camp stand, nearest bank, or the forced named bank. */
     private scriptBankTarget(): { stand: Tile | null; destination: BankDestination | null } {
         if (this.forcedBank) {
             const b = this.forcedBank;
