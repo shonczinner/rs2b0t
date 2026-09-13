@@ -284,8 +284,11 @@ ScriptRegistry.register({
             optionLabels: MINING_LOCATION_OPTION_LABELS,
             label: 'Location / full inventory',
             help:
-                'Mine camp + full-pack behaviour. Use Closest = nearest camp by distance. Use Start Position = freeform around your start tile + nearest bank. Use Custom Position = freeform around the custom tile. Named camps pin spot + bank. Camps with aggressive NPCs show a recommended combat level (2× highest aggro + 1). Power-mine via Bank=false (drop ore; configured food still restocks from the nearest bank).'
+                'Mine camp + full-pack behaviour. Use Closest = nearest camp by distance. Use Start Position = freeform around your start tile + nearest bank. Use Custom Position = freeform around the custom tile. Named camps pin spot + bank. Camps with aggressive NPCs show a recommended combat level (2× highest aggro + 1). Power-mine via Bank=false (drop ore; configured food still restocks from the nearest bank). Legacy None also power-mines.'
         },
+        customLocation: GATHERING_SETTINGS.customLocation,
+        bank: GATHERING_SETTINGS.bank,
+        bankLocation: GATHERING_SETTINGS.bankLocation,
         ...MINER_FOOD_SETTINGS,
         tickManip: {
             type: 'string',
@@ -406,8 +409,11 @@ ScriptRegistry.register({
             options: FISHING_LOCATION_OPTIONS,
             label: 'Location / full inventory',
             help:
-                'Fishing camp + full-pack behaviour. Use Closest = nearest camp by distance. Use Start Position = freeform around your start tile + nearest bank. Use Custom Position = freeform around the custom tile. Named camps pin pier + bank (and range for Catherby cook). Power-fish via Bank=false (always drop; cook is disabled).'
+                'Fishing camp + full-pack behaviour. Use Closest = nearest camp by distance. Use Start Position = freeform around your start tile + nearest bank. Use Custom Position = freeform around the custom tile. Named camps pin pier + bank (and range for Catherby cook). Power-fish via Bank=false (always drop; cook is disabled). Legacy None also power-fishes.'
         },
+        customLocation: GATHERING_SETTINGS.customLocation,
+        bank: GATHERING_SETTINGS.bank,
+        bankLocation: GATHERING_SETTINGS.bankLocation,
         cookMode: {
             type: 'string',
             default: 'Off',

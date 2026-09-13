@@ -33,15 +33,15 @@ import { ScriptRunner } from '../../runtime/ScriptRunner.js';
 import type { SettingsSchema } from '../../runtime/Settings.js';
 import { cookSurfaceForFishCamp, resolveFishCampCookSurface } from '../../data/cookingRanges.js';
 import { resolveFishingLocation, type FishingLocation } from '../../data/fishingLocations.js';
-import type { BaitVendor } from '../../data/gatheringLocations.js';
-import { effectiveGatherLeash, isAutoLocation, isCustomLocation, spotAvoided, sweepStopFor, NAMED_CAMP_LEASH_FLOOR } from './GatherCamp.js';
-import { baitTripDue } from './GatheringBotLogic.js';
+import type { BaitVendor, GatheringLocation } from '../../data/gatheringLocations.js';
 import {
     DEFAULT_CHASE_RADIUS,
+    NONE_LEGACY,
     resolveCampRadius,
-    resolveChaseRadius,
-    type GatheringLocation
+    resolveChaseRadius
 } from '../../data/gatheringLocations.js';
+import { effectiveGatherLeash, isAutoLocation, isCustomLocation, spotAvoided, sweepStopFor, NAMED_CAMP_LEASH_FLOOR } from './GatherCamp.js';
+import { baitTripDue } from './GatheringBotLogic.js';
 import { Players } from '../../api/players/Players.js';
 import {
     DEFAULT_TRADE_RANGE,
@@ -138,8 +138,15 @@ import {
     isDisposableGatherJunk,
     purgePackAtBank,
     waitBankReady,
-    withdrawCoins
+    withdrawCoins,
+    type BankDestination
 } from '../../api/bank/Banking.js';
+import {
+    BANK_LOCATIONS,
+    bankUnlocked,
+    nearestBank,
+    type BankLocation
+} from '../../api/bank/BankLocations.js';
 import {
     fmtDuration,
     fmtXpGained as fmtXpGainedPaint,
@@ -292,7 +299,7 @@ export const GATHERING_SETTINGS: SettingsSchema = {
     },
     customLocation: {
         type: 'tile',
-        default: { x: 3200, z: 3200, level: 0 },
+        default: new Tile(3200, 3200, 0),
         label: 'Custom position (x,z)',
         help: 'when Location is Use Custom Position, gather around this tile instead of your start tile — like AutoFighter Use Custom Position',
         showIf: { key: 'location', anyOf: ['Use Custom Position'] }
@@ -302,7 +309,17 @@ export const GATHERING_SETTINGS: SettingsSchema = {
         default: true,
         label: 'Bank haul',
         group: 'Banking',
-        help: 'true = bank when full (uses camp bank or nearest bank). false = power mode: drop haul when full, only bank for missing tools.'
+        help: 'true = bank when full (uses the bank behind Bank location below). false = power mode: drop haul when full, only bank for missing tools. Legacy None location also power-mines.'
+    },
+    bankLocation: {
+        type: 'string',
+        default: 'Auto',
+        options: ['Auto', 'Nearest', ...BANK_LOCATIONS.map(b => b.name)],
+        label: 'Bank location',
+        group: 'Banking',
+        showIf: { key: 'bank', anyOf: ['true'] },
+        help:
+            'Shown only when Bank haul is on. Auto = the camp\'s own bank stand for Use Closest / named camps; the nearest bank for Use Start Position / Use Custom Position. Nearest = always the nearest usable bank. A named choice forces that exact bank (quest/skill locked choices fall back to the nearest).'
     },
     muleMode: {
         type: 'string',
@@ -364,6 +381,11 @@ export default class GatheringBot extends TaskBot {
     private leash = 10;
     /** Raw location setting, Use Start/Custom Position skips mob flee (expert / may-die). */
     private locationSetting = 'Use Closest';
+
+    /** Bank location dropdown value; default 'Auto'. */
+    private bankLocation = 'Auto';
+    /** Named bank chosen in Bank location (null when Auto/Nearest/unknown). */
+    private forcedBank: BankLocation | null = null;
 
     private rockIds = new Set<number>();
     private productKeywords: string[] = [];
@@ -602,6 +624,17 @@ export default class GatheringBot extends TaskBot {
         }
 
         this.powerMode = !this.settings.bool('bank', true);
+        if (locSetting.trim().toLowerCase() === NONE_LEGACY.toLowerCase()) {
+            this.log(`location: legacy '${locSetting}' — power mode (drop); set Bank=false from now on`);
+            this.powerMode = true;
+        }
+
+        this.bankLocation = this.settings.str('bankLocation', 'Auto').trim() || 'Auto';
+        const forced = BANK_LOCATIONS.find(b => b.name.toLowerCase() === this.bankLocation.toLowerCase());
+        this.forcedBank = forced && !this.powerMode && bankUnlocked(forced) ? forced : null;
+        if (forced && !this.forcedBank) {
+            this.log(`bank: ${forced.name} ${this.powerMode ? 'disabled in power mode' : 'locked (quest/skill) — using auto/nearest'}`);
+        }
 
         // Mule / partner trade (NatureCrafter-style). Power mode forces Off.
         {
@@ -839,9 +872,11 @@ export default class GatheringBot extends TaskBot {
             for (const g of this.fishMethod?.gear ?? []) {
                 keep.add(g.name);
             }
+            const bp = this.scriptBankTarget();
             await purgePackAtBank({
                 keep: [...keep],
-                stand: this.location?.bankStand ?? null,
+                stand: bp.stand,
+                destination: bp.destination ?? undefined,
                 boothName: this.location?.boothName,
                 boothOp: this.location?.boothOp,
                 obstacles: this.location?.obstacles ?? ['door', 'gate'],
@@ -887,6 +922,11 @@ export default class GatheringBot extends TaskBot {
             }
         } else if (!this.powerMode) {
             this.log('location: no preset — nearest bank');
+        }
+        if (this.forcedBank) {
+            this.log(`bank: Bank location = ${this.forcedBank.name}`);
+        } else if (this.bankLocation.toLowerCase() === 'nearest') {
+            this.log('bank: Bank location = Nearest');
         }
         if (this.powerMode) {
             this.log(
@@ -1362,7 +1402,8 @@ export default class GatheringBot extends TaskBot {
             return true;
         }
         log(`bank: forgot something — stepping out then back (1/${FORGETFUL_BANK_ODDS})`);
-        const stand = this.location?.bankStand ?? here;
+        const t = this.scriptBankTarget();
+        const stand = t.stand ?? t.destination?.tile ?? here;
         // A few tiles off the booth, not a full trip home.
         const away = new Tile(here.x + (Math.random() < 0.5 ? -3 : 3), here.z + (Math.random() < 0.5 ? -2 : 2), here.level);
         await Traversal.walkResilient(away, { radius: 1, timeoutMs: 12_000, log });
@@ -1436,10 +1477,36 @@ export default class GatheringBot extends TaskBot {
         });
     }
 
+    /**
+     * The stand / destination the Bank location setting points at.
+     * Auto = the camp's own bankStand when a location resolved, else the nearest bank (Use Start / Custom Position).
+     * Nearest = always the nearest bank. A named choice forces that exact bank.
+     */
+    private scriptBankTarget(): { stand: Tile | null; destination: BankDestination | null } {
+        if (this.forcedBank) {
+            const b = this.forcedBank;
+            return {
+                stand: null,
+                destination: { name: b.name, tile: b.tile, access: b.access, npcAccess: b.npcAccess }
+            };
+        }
+        const nearestOnly = this.bankLocation.toLowerCase() === 'nearest';
+        if (nearestOnly || !this.location?.bankStand) {
+            const here = Game.tile();
+            const n = here ? nearestBank(here) : null;
+            return n
+                ? { stand: null, destination: { name: n.name, tile: n.tile, access: n.access, npcAccess: n.npcAccess } }
+                : { stand: null, destination: null };
+        }
+        return { stand: this.location.bankStand, destination: null };
+    }
+
     async openScriptBank(log: (m: string) => void = m => this.log(`  ${m}`)): Promise<boolean> {
         const loc = this.location;
+        const t = this.scriptBankTarget();
         return Banking.open({
-            stand: loc?.bankStand ?? null,
+            stand: t.stand,
+            destination: t.destination ?? undefined,
             boothName: loc?.boothName,
             boothOp: loc?.boothOp,
             obstacles: this.cookEnabled() ? this.cookObstacles : (loc?.obstacles ?? []),
@@ -2572,7 +2639,8 @@ export default class GatheringBot extends TaskBot {
         if (Bank.isOpen()) {
             return true;
         }
-        const stand = this.location?.bankStand;
+        const t = this.scriptBankTarget();
+        const stand = t.stand ?? t.destination?.tile ?? null;
         const here = Game.tile();
         if (!stand || !here) {
             return false;

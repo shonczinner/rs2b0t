@@ -91,11 +91,12 @@ describe('resolveFishingLocation', () => {
 });
 
 describe('FISHING_LOCATIONS table', () => {
-    test('dropdown options are Use Closest + Use Start Position + Use Custom Position + every location', () => {
+    test('dropdown options are Use Closest + Use Start Position + Use Custom Position + legacy None + every location', () => {
         expect(FISHING_LOCATION_OPTIONS).toEqual([
             'Use Closest',
             'Use Start Position',
             'Use Custom Position',
+            'None',
             ...FISHING_LOCATIONS.map(l => l.name)
         ]);
         expect(LOCATION_OPTIONS).toEqual(FISHING_LOCATION_OPTIONS);

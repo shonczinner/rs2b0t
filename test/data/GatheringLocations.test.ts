@@ -106,11 +106,12 @@ describe('resolveGatheringLocation', () => {
 });
 
 describe('locationOptions / boothFields', () => {
-    test('options are Use Closest + Use Start Position + Use Custom Position + names', () => {
+    test('options are Use Closest + Use Start Position + Use Custom Position + legacy None + names', () => {
         expect(locationOptions(TABLE)).toEqual([
             'Use Closest',
             'Use Start Position',
             'Use Custom Position',
+            'None',
             'Near',
             'Far',
             'Upstairs',

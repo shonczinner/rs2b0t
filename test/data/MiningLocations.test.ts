@@ -103,18 +103,19 @@ describe('resolveMiningLocation', () => {
 });
 
 describe('MINING_LOCATIONS table', () => {
-    test('dropdown is Use Closest + Use Start Position + Use Custom Position + camps', () => {
+    test('dropdown is Use Closest + Use Start Position + Use Custom Position + legacy None + camps', () => {
         expect(MINING_LOCATION_OPTIONS[0]).toBe('Use Closest');
         expect(MINING_LOCATION_OPTIONS[1]).toBe('Use Start Position');
         expect(MINING_LOCATION_OPTIONS[2]).toBe('Use Custom Position');
-        expect(MINING_LOCATION_OPTIONS).toHaveLength(MINING_LOCATIONS.length + 3);
+        expect(MINING_LOCATION_OPTIONS[3]).toBe('None');
+        expect(MINING_LOCATION_OPTIONS).toHaveLength(MINING_LOCATIONS.length + 4);
         for (const loc of MINING_LOCATIONS) {
             expect(MINING_LOCATION_OPTIONS).toContain(loc.name);
         }
     });
 
-    test('dropdown camps are alphabetical after the three freeform entries', () => {
-        const camps = MINING_LOCATION_OPTIONS.slice(3);
+    test('dropdown camps are alphabetical after the four leading entries', () => {
+        const camps = MINING_LOCATION_OPTIONS.slice(4);
         expect(camps).toEqual([...camps].sort((a, b) => a.localeCompare(b)));
     });
 

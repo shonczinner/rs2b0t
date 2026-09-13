@@ -85,8 +85,11 @@ export const USE_CUSTOM_POSITION = 'Use Custom Position';
 /** Legacy alias, kept for saves that stored 'Auto'. */
 export const AUTO_LEGACY = 'Auto';
 
+/** Legacy power-drop location, kept so saved 'None' does not silently re-parse to the default. */
+export const NONE_LEGACY = 'None';
+
 export function locationOptions(table: readonly GatheringLocation[]): string[] {
-    return [USE_CLOSEST, USE_START_POSITION, USE_CUSTOM_POSITION, ...table.map(l => l.name)];
+    return [USE_CLOSEST, USE_START_POSITION, USE_CUSTOM_POSITION, NONE_LEGACY, ...table.map(l => l.name)];
 }
 
 export function boothFields(loc: GatheringLocation | null | undefined): {
