@@ -5,14 +5,14 @@
 
 # Bundled scripts
 
-- Scripts: 75. Categories: 21.
+- Scripts: 76. Categories: 21.
 - Source: [`src/bot/scripts/`](../src/bot/scripts/). API: [scripting API](API.md).
 - Settings are the parameters the panel exposes before a script starts.
 
 ## Contents
 
 - [Agility](#agility) — 4
-- [Combat](#combat) — 16
+- [Combat](#combat) — 17
 - [Cooking](#cooking) — 2
 - [Crafting](#crafting) — 8
 - [Firemaking](#firemaking) — 1
@@ -539,6 +539,19 @@ Rellekka rock crabs: aggro-stack-kill-reset, loots key halves
 | `bankEveryMinutes` | number (1–120) | `10` | Bank every N minutes |
 | `bankCommonJunk` | boolean | `true` | Also bank gems/fruit/beer/kebabs/caskets |
 | `solveClues` | boolean | `true` | Solve easy clues |
+
+### WanderFighter
+
+Wanders the world looking for at least two free monsters below half its combat level, fights them with melee, trains the lowest of Attack/Strength/Defence, never eats or banks, and respawns after death. Checks for monsters between short wander legs and skips configured monster names. Logs kills, XP, level-ups and startup stats.
+
+- Tags: `combat`, `wandering`, `training`, `melee`, `no-food`, `death-recovery`
+
+| Setting | Type | Default | Notes |
+|---|---|---|---|
+| `wanderDistance` | number (5–60) | `60` | Wander distance (tiles) |
+| `searchRadius` | number (5–30) | `30` | Monster search radius (tiles) |
+| `minFreeTargets` | number (1–10) | `2` | Free monsters before fighting |
+| `avoidMonsters` | string[] | `["Rat","Duck","Spider"]` | Monsters to avoid |
 
 ## Cooking
 

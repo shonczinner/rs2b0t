@@ -89,6 +89,7 @@ import ArravSupplier, { ARRAV_SUPPLIER_SETTINGS } from './ArravSupplier/ArravSup
 import Barcrawl from './Barcrawl/Barcrawl.js';
 import DuelArena, { DUEL_ARENA_SETTINGS } from './DuelArena/DuelArena.js';
 import WanderLooter, { SETTINGS as WANDER_LOOTER_SETTINGS } from './WanderLooter/WanderLooter.js';
+import WanderFighter, { SETTINGS as WANDER_FIGHTER_SETTINGS } from './WanderFighter/WanderFighter.js';
 
 // First register = panel default when no script is remembered (BotPanel → list()[0]).
 ScriptRegistry.register({
@@ -900,4 +901,13 @@ ScriptRegistry.register({
     tags: ['loot', 'wandering', 'banking', 'food', 'event', 'pumpkin'],
     settingsSchema: WANDER_LOOTER_SETTINGS,
     create: () => new WanderLooter()
+});
+
+ScriptRegistry.register({
+    name: 'WanderFighter',
+    description: 'Wanders the world looking for at least two free monsters below half its combat level, fights them with melee, trains the lowest of Attack/Strength/Defence, never eats or banks, and respawns after death. Checks for monsters between short wander legs and skips configured monster names. Logs kills, XP, level-ups and startup stats.',
+    category: 'Combat',
+    tags: ['combat', 'wandering', 'training', 'melee', 'no-food', 'death-recovery'],
+    settingsSchema: WANDER_FIGHTER_SETTINGS,
+    create: () => new WanderFighter()
 });
