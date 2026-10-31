@@ -1,4 +1,5 @@
 import AccountLeveler, { SETTINGS as ACCOUNT_LEVELER_SETTINGS } from './AccountLeveler/AccountLeveler.js';
+import Seers3tFisher, { SETTINGS as SEERS_3T_FISHER_SETTINGS } from './Seers3tFisher/Seers3tFisher.js';
 import { AGILITY_SETTINGS } from './AgilityBot/AgilityBot.js';
 import { FISHING_LOCATION_OPTIONS } from '../data/fishingLocations.js';
 import { FISHING_METHOD_OPTIONS } from '../data/fishingMethods.js';
@@ -882,6 +883,15 @@ ScriptRegistry.register({
     tags: ['crafting', 'fletching', 'flax', 'bow-strings', 'trade', 'two-player', 'afk'],
     settingsSchema: FLAXRUNNER_SETTINGS,
     create: () => new FlaxRunner()
+});
+
+ScriptRegistry.register({
+    name: 'Seers3tFisher',
+    description: 'Standalone 3-tick fly fisher at Seers: provisions axe, knife, carrier log, rod and feathers, then drops fish and keeps the knife-on-log batch running',
+    category: 'Fishing',
+    tags: ['fishing', 'tick-manip', 'seers', 'power-fish'],
+    settingsSchema: SEERS_3T_FISHER_SETTINGS,
+    create: () => new Seers3tFisher()
 });
 
 ScriptRegistry.register({

@@ -281,6 +281,15 @@ export const CASES: readonly Case[] = [
         note: 'Fresh local accounts; custom Crossbow/Bolts and Rune knife must equip, merge carried refills and gain ranged XP against Fire giants. Isolated deployment; --no-deploy requires CLIENT_PAGE.'
     },
     {
+        id: 'seers-3t-fisher-live',
+        harness: 'seers-3t-fisher-live.ts',
+        covers: { scripts: ['Seers3tFisher'] },
+        status: 'unvetted',
+        args: [],
+        budgetMin: 12,
+        note: 'standalone Seers3tFisher starts with no axe/knife/log, provisions them, reaches the 3-tick batch, records fishing xp/hr after the first roll, and asserts one carrier log is kept'
+    },
+    {
         id: 'fisher-shilo-shopping-live',
         harness: 'fisher-shilo-shopping-live.ts',
         covers: { scripts: ['GatheringBot'] },

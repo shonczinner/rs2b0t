@@ -5,7 +5,7 @@
 
 # Bundled scripts
 
-- Scripts: 75. Categories: 21.
+- Scripts: 76. Categories: 21.
 - Source: [`src/bot/scripts/`](../src/bot/scripts/). API: [scripting API](API.md).
 - Settings are the parameters the panel exposes before a script starts.
 
@@ -16,7 +16,7 @@
 - [Cooking](#cooking) — 2
 - [Crafting](#crafting) — 8
 - [Firemaking](#firemaking) — 1
-- [Fishing](#fishing) — 1
+- [Fishing](#fishing) — 2
 - [Fletching](#fletching) — 2
 - [General](#general) — 1
 - [Herblore](#herblore) — 5
@@ -724,6 +724,17 @@ Fishes a chosen method at the spot that offers it; banks the catch, optionally c
 | `withdrawCoins` | number (0–) | `0` | Coins to withdraw at bank |
 | `bankTeleport` | string | `"Off"` | Teleport runes — one of: Off, Varrock teleport, Lumbridge teleport, Falador teleport, Camelot teleport, Ardougne teleport, Watchtower teleport, Trollheim teleport |
 | `teleCasts` | number (1–) | `1` | Teleport casts to stock |
+
+### Seers3tFisher
+
+Standalone 3-tick fly fisher at Seers: provisions axe, knife, carrier log, rod and feathers, then drops fish and keeps the knife-on-log batch running
+
+- Tags: `fishing`, `tick-manip`, `seers`, `power-fish`
+
+| Setting | Type | Default | Notes |
+|---|---|---|---|
+| `feathers` | number (1–) | `10000` | Feathers to withdraw |
+| `dropFish` | boolean | `true` | Drop fish |
 
 ## Fletching
 
