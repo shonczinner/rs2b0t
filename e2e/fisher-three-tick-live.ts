@@ -11,9 +11,9 @@ type Abi = {
 };
 
 const SPOT = { x: 2716, z: 3532, level: 0 };
-// CI smoke floor; set FOUR_TICK_MIN_XP_HR=90000 for the tuned target run.
-const MIN_XP_HR = Number(process.env.FOUR_TICK_MIN_XP_HR ?? 50_000);
-const RUN_MS = Number(process.env.FOUR_TICK_MS ?? 180_000);
+// CI smoke floor; set THREE_TICK_MIN_XP_HR=90000 for the tuned target run.
+const MIN_XP_HR = Number(process.env.THREE_TICK_MIN_XP_HR ?? 50_000);
+const RUN_MS = Number(process.env.THREE_TICK_MS ?? 180_000);
 
 const xpNow = (page: import('playwright-core').Page): Promise<number> =>
     page.evaluate(() => (globalThis as never as Abi).__rs2b0t.Skills.xp('fishing'));
@@ -22,7 +22,7 @@ const count = (page: import('playwright-core').Page, name: string): Promise<numb
 
 async function main(): Promise<void> {
     const base = process.env.BASE ?? 'http://localhost:8891';
-    const tag = `4t-${Date.now().toString(36).slice(-6)}`;
+    const tag = `3t-${Date.now().toString(36).slice(-6)}`;
     const client = deployIsolatedClient(tag);
     const browser = await launchBrowser();
     const page = await browser.newPage();
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
             toolAcquire: 'Off',
             muleMode: 'Off',
             tickManip: 'Off',
-            fourTickFly: true,
+            threeTickFly: true,
             leashRadius: 18
         });
         const startedAt = Date.now();

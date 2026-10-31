@@ -33,7 +33,7 @@ export const FISH_TICK_MANIP_OPTIONS = [
     'Tannerfishing'
 ] as const;
 
-type FishTickManip = 'off' | '4t-fly' | 'knife-delay' | 'four-tick-fly' | 'tannerfish';
+type FishTickManip = 'off' | '4t-fly' | 'knife-delay' | 'three-tick-fly' | 'tannerfish';
 
 // Mining profiles.
 
@@ -78,8 +78,8 @@ export interface TickManipProfile {
     nativeCycleTicks: number | null;
     /** Farmer willows 6-tick phase machine (tree / cut / drop). */
     farmerWillowCycle: boolean;
-    /** Roll-anchored knife+shortbow 4-tick fly fishing. */
-    fourTickFlyCycle: boolean;
+    /** Roll-anchored knife+shortbow 3-tick fly fishing. */
+    threeTickFlyCycle: boolean;
     /** Interleave cook+eat during fishing (Tannerfishing). */
     cookEatInterleave: boolean;
     /** May die, same product risk as Location Auto. */
@@ -97,7 +97,7 @@ const OFF_PROFILE = (skill: TickManipSkill): TickManipProfile => ({
     shortbowRapid: false,
     nativeCycleTicks: null,
     farmerWillowCycle: false,
-    fourTickFlyCycle: false,
+    threeTickFlyCycle: false,
     cookEatInterleave: false,
     mayDie: false
 });
@@ -194,14 +194,14 @@ export function fishTickManipProfile(method: FishTickManip, label = methodLabel(
     }
 }
 
-export function fourTickFlyProfile(): TickManipProfile {
+export function threeTickFlyProfile(): TickManipProfile {
     return {
         ...OFF_PROFILE('fish'),
-        method: 'four-tick-fly',
-        label: '4-tick fly (knife + shortbow)',
+        method: 'three-tick-fly',
+        label: '3-tick fly (knife + shortbow)',
         useKnifeDelay: true,
         timedReclick: true,
-        fourTickFlyCycle: true,
+        threeTickFlyCycle: true,
         nativeCycleTicks: 3
     };
 }
@@ -274,7 +274,7 @@ function methodLabel(skill: TickManipSkill, method: TickManipMethod): string {
         return 'Off';
     }
     if (skill === 'fish') {
-        if (method === 'four-tick-fly') return '4-tick fly (knife + shortbow)';
+        if (method === 'three-tick-fly') return '3-tick fly (knife + shortbow)';
         return FISH_TICK_MANIP_OPTIONS.find(o => parseFishTickManip(o) === method) ?? method;
     }
     if (skill === 'mine') {
