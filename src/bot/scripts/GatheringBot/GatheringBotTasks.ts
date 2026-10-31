@@ -2879,6 +2879,7 @@ export class Gather implements Task {
                 return;
             }
             this.activeFishIndex = index;
+            this.bot.setFourTickTarget(index);
             if (Inventory.used() > before) {
                 if (await this.afterRollTickManip(() => this.reclickFish(index, startTile))) {
                     return;

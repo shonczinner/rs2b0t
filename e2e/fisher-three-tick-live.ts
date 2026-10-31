@@ -8,6 +8,12 @@ type Abi = {
         Skills: { xp(skill: string): number };
         Inventory: { count(name: string): number };
     };
+    rs2b0t: {
+        reader: {
+            selfAnim(): number;
+            selfAnimState(): { seq: number; cycle: number } | null;
+        };
+    };
 };
 
 const SPOT = { x: 2716, z: 3532, level: 0 };
@@ -67,13 +73,25 @@ async function main(): Promise<void> {
         const measuredFrom = Date.now();
         const measuredXpStart = measuredXp;
         const rolls: { at: number; xp: number }[] = [{ at: 0, xp: measuredXp }];
+        const rollTicks: number[] = [];
+        let lastSeq = -1;
+        let lastCycle = -1;
         while (Date.now() - measuredFrom < RUN_MS) {
-            await page.waitForTimeout(200);
+            await page.waitForTimeout(50);
             const xp = await xpNow(page);
             if (xp > rolls[rolls.length - 1]!.xp) {
                 rolls.push({ at: Date.now() - measuredFrom, xp });
             }
+            const anim = await page.evaluate(() => {
+                const r = (globalThis as never as Abi).rs2b0t.reader;
+                const s = r.selfAnimState();
+                return { tick: (globalThis as never as { __rs2b0t: { Game: { tick(): number } } }).__rs2b0t.Game.tick(), seq: s?.seq ?? -1, cycle: s?.cycle ?? -1 };
+            });
+            if (anim.seq === 623 && (anim.seq !== lastSeq || anim.cycle < lastCycle)) rollTicks.push(anim.tick);
+            lastSeq = anim.seq;
+            lastCycle = anim.cycle;
         }
+        const rollGaps = rollTicks.slice(1).map((t, i) => t - rollTicks[i]!);
         const measuredXpEnd = await xpNow(page);
         const elapsedMs = Date.now() - measuredFrom;
         const gained = measuredXpEnd - measuredXpStart;
@@ -85,15 +103,19 @@ async function main(): Promise<void> {
         assert.equal(knife, 1, 'knife kept');
         assert(gained > 0, 'no fishing xp gained');
         assert(xpPerHour >= MIN_XP_HR, `xp/hr ${xpPerHour} below ${MIN_XP_HR}`);
+        const tickDebug = await page.evaluate(() => {
+            const bot = (globalThis as never as { rs2b0t: { runner: { bot?: { threeTickDebug?: () => unknown } } } }).rs2b0t.runner.bot;
+            return bot?.threeTickDebug?.() ?? null;
+        });
         assert.deepEqual(errors, [], 'browser runtime errors');
         await mkdir(directory, { recursive: true });
         await page.screenshot({ path: `${directory}/four-tick.png` });
         await writeFile(`${directory}/evidence.json`, JSON.stringify({
             status: 'pass', spot: SPOT, startedAt, measuredXpStart, measuredXpEnd,
             gained, elapsedMs, xpPerHour, minXpPerHour: MIN_XP_HR, logs, knife, fish, errors,
-            rolls: rolls.length - 1, rollGapsMs: rolls.slice(1).map((r, i) => r.at - rolls[i]!.at), botLogs
+            rolls: rolls.length - 1, rollGapsMs: rolls.slice(1).map((r, i) => r.at - rolls[i]!.at), animRollTicks: rollTicks, animRollGaps: rollGaps, tickDebug, botLogs
         }, null, 2) + '\n');
-        console.log('PASS', JSON.stringify({ xpPerHour, gained, rolls: rolls.length - 1, logs, knife, fish, botLogs: botLogs.slice(-5) }));
+        console.log('PASS', JSON.stringify({ xpPerHour, gained, rolls: rolls.length - 1, animRolls: rollTicks.length, rollGaps, tickDebug, logs, knife, fish, botLogs: botLogs.slice(-5) }));
     } finally {
         await stopScript(page).catch(() => undefined);
         await logout(page).catch(() => undefined);

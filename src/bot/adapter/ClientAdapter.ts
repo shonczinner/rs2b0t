@@ -495,9 +495,9 @@ export const reader = {
         return raw?.localPlayer?.primaryAnim ?? -1;
     },
 
-    selfAnimState(): { seq: number; cycle: number } | null {
+    selfAnimState(): { seq: number; cycle: number; serial: number } | null {
         const player = raw?.localPlayer;
-        return player ? { seq: player.primaryAnim, cycle: player.primaryAnimCycle } : null;
+        return player ? { seq: player.primaryAnim, cycle: player.primaryAnimCycle, serial: player.primaryAnimSerial } : null;
     },
 
     selfChat(): string | null {

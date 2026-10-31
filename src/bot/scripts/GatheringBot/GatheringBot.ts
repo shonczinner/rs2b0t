@@ -535,7 +535,14 @@ export default class GatheringBot extends TaskBot {
     private fourTickRollDue = -1;
     private fourTickLastSeq = -1;
     private fourTickLastCycle = -1;
+    private fourTickLastSerial = -1;
     private stopFourTick: (() => void) | null = null;
+    private threeTickBatchTicks: number[] = [];
+    private threeTickLandingTicks: number[] = [];
+    private threeTickLandingSeq: number[] = [];
+    private threeTickRollGaps: number[] = [];
+    private threeTickFallbacks = 0;
+    private threeTickLastRoll = -1;
     /** Last inventory-used mark used to detect a resource roll for tick manip. */
     private lastRollTick = -1;
     /** Farmer willows 6-tick cycle anchor (Game.tick at cycle start). */
@@ -2198,15 +2205,26 @@ export default class GatheringBot extends TaskBot {
         this.fourTickTarget = index;
     }
 
+    threeTickDebug(): { batches: number[]; landings: number[]; landingSeq: number[]; rollGaps: number[]; fallbacks: number } {
+        return {
+            batches: [...this.threeTickBatchTicks],
+            landings: [...this.threeTickLandingTicks],
+            landingSeq: [...this.threeTickLandingSeq],
+            rollGaps: [...this.threeTickRollGaps],
+            fallbacks: this.threeTickFallbacks
+        };
+    }
+
     /** Event-driven 3-tick controller: fresh roll animation -> batch, landing -> armed, roll -> next batch. */
     private onFourTickTick(): void {
         if (!this.fishing || this.tickManip.method !== 'three-tick-fly' || this.fourTickTarget === null) return;
         const state = this.animState();
         if (!state) return;
         const tick = Game.tick();
-        const fresh = state.seq !== this.fourTickLastSeq || state.cycle < this.fourTickLastCycle;
+        const fresh = state.serial !== this.fourTickLastSerial;
         this.fourTickLastSeq = state.seq;
         this.fourTickLastCycle = state.cycle;
+        this.fourTickLastSerial = state.serial;
 
         if (this.fourTickState === 'native') {
             if (fresh && state.seq === 623) this.sendFourTickBatch(tick);
@@ -2217,7 +2235,8 @@ export default class GatheringBot extends TaskBot {
                 if (fresh && (state.seq === 1248 || state.seq === 623)) {
                     this.fourTickState = 'armed';
                     this.fourTickRollDue = tick + 2;
-                    void this.dropProductsUpTo(2);
+                    this.threeTickLandingTicks.push(tick);
+                    this.threeTickLandingSeq.push(state.seq);
                 }
                 return;
             }
@@ -2225,14 +2244,14 @@ export default class GatheringBot extends TaskBot {
             return;
         }
         if (this.fourTickState === 'armed') {
-            if (tick >= this.fourTickRollDue) {
-                if (fresh && state.seq === 623) this.sendFourTickBatch(tick);
-                else this.fourTickFallback();
-            }
+            // R+2 is the spare tick: drop fish there, never on the Make+Lure landing tick.
+            if (tick === this.fourTickSent + 2) void this.dropProductsUpTo(2);
+            // The landed Make guarantees the armed roll; the fletching animation can hide the roll animation.
+            if (tick >= this.fourTickRollDue) this.sendFourTickBatch(tick);
         }
     }
 
-    private animState(): { seq: number; cycle: number } | null {
+    private animState(): { seq: number; cycle: number; serial: number } | null {
         return reader.selfAnimState();
     }
 
@@ -2246,14 +2265,18 @@ export default class GatheringBot extends TaskBot {
         Input.interactNpc(target, 1);
         this.fourTickState = 'sent';
         this.fourTickSent = tick;
-        this.setStatus(`4t fly: batch @${tick}`);
+        this.threeTickBatchTicks.push(tick);
+        if (this.threeTickLastRoll >= 0) this.threeTickRollGaps.push(tick - this.threeTickLastRoll);
+        this.threeTickLastRoll = tick;
+        this.setStatus(`3-tick fly: batch @${tick}`);
     }
 
     private fourTickFallback(): void {
         const target = this.fourTickTarget;
         if (target !== null) Input.interactNpc(target, 1);
+        this.threeTickFallbacks++;
         this.fourTickState = 'native';
-        this.setStatus('4t fly: fallback click');
+        this.setStatus('3-tick fly: fallback click');
     }
 
     tickManipProfile(): TickManipProfile {
