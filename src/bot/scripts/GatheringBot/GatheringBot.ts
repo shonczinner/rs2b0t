@@ -2260,6 +2260,9 @@ export default class GatheringBot extends TaskBot {
         const knife = Inventory.first('Knife');
         const log = this.delayLogItem();
         if (target === null || !knife || !log || ChatDialog.isMakeMenu()) return;
+        // R: one drop plus the four-event batch stays inside the five-event tick budget.
+        const fish = this.products()[0];
+        if (fish) void fish.interact('Drop');
         Input.useItemOnItem(knife.id, knife.slot, knife.snap.comId, log.id, log.slot, log.snap.comId);
         actions.ifButton(8889);
         Input.interactNpc(target, 1);
