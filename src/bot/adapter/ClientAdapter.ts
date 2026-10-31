@@ -1866,6 +1866,17 @@ export const actions = {
         }
 
         return actions.menuAction(MiniMenuAction.CLOSE_BUTTON, 0, 0, comId);
+    },
+
+    /** Send CLOSE_MODAL even when no modal is open locally; tick-manip batches need it to cancel a queued weak action. */
+    closeModalPacket(): boolean {
+        if (!raw || !raw.ingame || !raw.out) {
+            return false;
+        }
+        raw.out.p1Enc(ClientProt.CLOSE_MODAL);
+        raw.mainModalId = -1;
+        raw.sideModalId = -1;
+        return true;
     }
 };
 

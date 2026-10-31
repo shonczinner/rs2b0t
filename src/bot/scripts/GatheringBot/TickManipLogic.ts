@@ -33,7 +33,7 @@ export const FISH_TICK_MANIP_OPTIONS = [
     'Tannerfishing'
 ] as const;
 
-type FishTickManip = 'off' | '4t-fly' | 'knife-delay' | 'tannerfish';
+type FishTickManip = 'off' | '4t-fly' | 'knife-delay' | 'four-tick-fly' | 'tannerfish';
 
 // Mining profiles.
 
@@ -78,6 +78,8 @@ export interface TickManipProfile {
     nativeCycleTicks: number | null;
     /** Farmer willows 6-tick phase machine (tree / cut / drop). */
     farmerWillowCycle: boolean;
+    /** Roll-anchored knife+shortbow 4-tick fly fishing. */
+    fourTickFlyCycle: boolean;
     /** Interleave cook+eat during fishing (Tannerfishing). */
     cookEatInterleave: boolean;
     /** May die, same product risk as Location Auto. */
@@ -95,6 +97,7 @@ const OFF_PROFILE = (skill: TickManipSkill): TickManipProfile => ({
     shortbowRapid: false,
     nativeCycleTicks: null,
     farmerWillowCycle: false,
+    fourTickFlyCycle: false,
     cookEatInterleave: false,
     mayDie: false
 });
@@ -191,6 +194,18 @@ export function fishTickManipProfile(method: FishTickManip, label = methodLabel(
     }
 }
 
+export function fourTickFlyProfile(): TickManipProfile {
+    return {
+        ...OFF_PROFILE('fish'),
+        method: 'four-tick-fly',
+        label: '4-tick fly (knife + shortbow)',
+        useKnifeDelay: true,
+        timedReclick: true,
+        fourTickFlyCycle: true,
+        nativeCycleTicks: 3
+    };
+}
+
 function mineTickManipProfile(method: MineTickManip, label = methodLabel('mine', method)): TickManipProfile {
     switch (method) {
         case 'iron-cadence':
@@ -259,6 +274,7 @@ function methodLabel(skill: TickManipSkill, method: TickManipMethod): string {
         return 'Off';
     }
     if (skill === 'fish') {
+        if (method === 'four-tick-fly') return '4-tick fly (knife + shortbow)';
         return FISH_TICK_MANIP_OPTIONS.find(o => parseFishTickManip(o) === method) ?? method;
     }
     if (skill === 'mine') {

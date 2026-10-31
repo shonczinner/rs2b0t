@@ -129,6 +129,7 @@ import {
     isShortbowName,
     miningRateForPickaxe,
     profileForSetting,
+    fourTickFlyProfile,
     type TickManipProfile
 } from './TickManipLogic.js';
 import {
@@ -774,8 +775,11 @@ export default class GatheringBot extends TaskBot {
                 skill && 'tickManip' in this.settings.raw()
                     ? this.settings.str('tickManip', 'Off')
                     : 'Off';
-            this.tickManip = skill ? profileForSetting(skill, rawLabel) : profileForSetting('mine', 'Off');
-            if (this.tickManip.method !== 'off' && this.powerMode) {
+            const fourTickFly = this.fishing && this.settings.bool('fourTickFly', false);
+            this.tickManip = fourTickFly
+                ? fourTickFlyProfile()
+                : skill ? profileForSetting(skill, rawLabel) : profileForSetting('mine', 'Off');
+            if (this.tickManip.method !== 'off' && this.powerMode && !fourTickFly) {
                 this.log(`tick manip: '${this.tickManip.label}' disabled under Bank=false (power)`);
                 this.tickManip = profileForSetting(skill ?? 'mine', 'Off');
             } else if (this.tickManip.method !== 'off') {
@@ -3435,6 +3439,12 @@ export default class GatheringBot extends TaskBot {
     }
     productLabel(): string {
         return this.productKeywords.join('/');
+    }
+
+    async dropProductsUpTo(n: number): Promise<void> {
+        const items = this.products().slice(0, Math.max(0, n));
+        if (items.length === 0) return;
+        await Promise.all(items.map(item => item.interact('Drop')));
     }
 
     async dropProducts(): Promise<void> {

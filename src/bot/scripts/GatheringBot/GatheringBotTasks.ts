@@ -1,5 +1,7 @@
 /** GatheringBot task implementations for combat, mule, bank, cooking, tools, and gathering. */
 import { beyondLeash, shouldSoftHomeFromGatherMiss, tileWithinLeash } from '../../api/tasks/Anchor.js';
+import { actions } from '../../adapter/ClientAdapter.js';
+import { Input } from '../../input/Input.js';
 import type { Task } from '../../api/bot/Bot.js';
 import { EventSignal } from '../../api/execution/EventSignal.js';
 import { Execution } from '../../api/execution/Execution.js';
@@ -2671,12 +2673,35 @@ export class Gather implements Task {
      * After a resource roll, optionally arm knife delay or schedule timed reclick.
      * Returns true when the caller should skip the normal AFK wait loop this beat.
      */
-    private async afterRollTickManip(reclick: () => Promise<boolean>): Promise<boolean> {
+    private async afterRollTickManip(reclick: () => Promise<boolean>, lure?: () => boolean): Promise<boolean> {
         const profile = this.bot.tickManipProfile();
         if (profile.method === 'off') {
             return false;
         }
         this.bot.noteGatherRoll();
+
+        if (profile.fourTickFlyCycle) {
+            const knife = Inventory.first('Knife');
+            const log = this.bot.delayLogItem();
+            if (!knife || !log) {
+                this.bot.log('4t fly: needs Knife + 1 Logs');
+                return false;
+            }
+            const R = this.bot.lastGatherRollTick();
+            // R: one drop plus the four-event batch, all in one socket write.
+            const fish = this.bot.products()[0];
+            if (fish) void fish.interact('Drop');
+            Input.useItemOnItem(knife.id, knife.slot, knife.snap.comId, log.id, log.slot, log.snap.comId);
+            actions.ifButton(8889); // skill_multi3:make1_a
+            actions.closeModalPacket();
+            lure?.();
+            // R+2: spare tick, clear the fish that landed on the roll.
+            await Execution.delayUntilTicks(() => Game.tick() >= R + 2, 3);
+            await this.bot.dropProductsUpTo(2);
+            // R+3: the next roll lands; the caller's roll detector re-enters here.
+            await Execution.delayUntilTicks(() => Game.tick() >= R + 3, 3);
+            return true;
+        }
 
         if (profile.useKnifeDelay) {
             if (!this.bot.hasKnifeDelayKit() && !ChatDialog.isMakeMenu()) {
@@ -2875,7 +2900,7 @@ export class Gather implements Task {
             }
             this.activeFishIndex = index;
             if (Inventory.used() > before) {
-                if (await this.afterRollTickManip(() => this.reclickFish(index, startTile))) {
+                if (await this.afterRollTickManip(() => this.reclickFish(index, startTile), () => Input.interactNpc(index, 1))) {
                     return;
                 }
             }
@@ -2901,7 +2926,7 @@ export class Gather implements Task {
                 return;
             }
             if (Inventory.used() > mark) {
-                if (await this.afterRollTickManip(() => this.reclickFish(index, startTile))) {
+                if (await this.afterRollTickManip(() => this.reclickFish(index, startTile), () => Input.interactNpc(index, 1))) {
                     return;
                 }
                 continue;

@@ -457,6 +457,13 @@ ScriptRegistry.register({
             group: 'Tick manip',
             help: TICK_MANIP_UNSHIPPED_HELP
         },
+        fourTickFly: {
+            type: 'boolean',
+            default: false,
+            label: '4-tick fly fishing (knife + shortbow)',
+            group: 'Tick manip',
+            help: 'Roll-anchored fly fishing: drop fish and knife the log on the roll, Make-1 shortbow + Lure on the next tick, then repeat every 3 ticks. Needs a Knife and one Logs; power/drop mode is allowed.'
+        },
         guildFeatherMinutes: {
             type: 'number',
             default: 0,
