@@ -17,8 +17,8 @@ type Abi = {
 };
 
 const SPOT = { x: 2716, z: 3532, level: 0 };
-// CI smoke floor; set THREE_TICK_MIN_XP_HR=90000 for the tuned target run.
-const MIN_XP_HR = Number(process.env.THREE_TICK_MIN_XP_HR ?? 50_000);
+// Target floor measured at 96k on local Engine-TS; override for slower hosts.
+const MIN_XP_HR = Number(process.env.THREE_TICK_MIN_XP_HR ?? 90_000);
 const RUN_MS = Number(process.env.THREE_TICK_MS ?? 180_000);
 
 const xpNow = (page: import('playwright-core').Page): Promise<number> =>

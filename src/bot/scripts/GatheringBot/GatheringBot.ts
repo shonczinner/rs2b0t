@@ -2244,9 +2244,7 @@ export default class GatheringBot extends TaskBot {
             return;
         }
         if (this.fourTickState === 'armed') {
-            // R+2 is the spare tick: drop fish there, never on the Make+Lure landing tick.
-            if (tick === this.fourTickSent + 2) void this.dropProductsUpTo(2);
-            // The landed Make guarantees the armed roll; the fletching animation can hide the roll animation.
+            // No actions between batches: a drop after Lure cancels the roll.
             if (tick >= this.fourTickRollDue) this.sendFourTickBatch(tick);
         }
     }
@@ -2260,9 +2258,8 @@ export default class GatheringBot extends TaskBot {
         const knife = Inventory.first('Knife');
         const log = this.delayLogItem();
         if (target === null || !knife || !log || ChatDialog.isMakeMenu()) return;
-        // R: one drop plus the four-event batch stays inside the five-event tick budget.
-        const fish = this.products()[0];
-        if (fish) void fish.interact('Drop');
+        // One batch: drops first, then knife → Make-1 → Lure. Nothing between batches.
+        for (const fish of this.products().slice(0, 2)) void fish.interact('Drop');
         Input.useItemOnItem(knife.id, knife.slot, knife.snap.comId, log.id, log.slot, log.snap.comId);
         actions.ifButton(8889);
         Input.interactNpc(target, 1);
@@ -3547,12 +3544,6 @@ export default class GatheringBot extends TaskBot {
     }
     productLabel(): string {
         return this.productKeywords.join('/');
-    }
-
-    async dropProductsUpTo(n: number): Promise<void> {
-        const items = this.products().slice(0, Math.max(0, n));
-        if (items.length === 0) return;
-        await Promise.all(items.map(item => item.interact('Drop')));
     }
 
     async dropProducts(): Promise<void> {
