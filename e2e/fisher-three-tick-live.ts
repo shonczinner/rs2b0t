@@ -5,7 +5,7 @@ import { cheatQuiet, mainlandAccount, startScript, teleTo } from './tutorial/har
 
 type Abi = {
     __rs2b0t: {
-        Skills: { xp(skill: string): number };
+        Skills: { xp(skill: string): number; level(skill: string): number };
         Inventory: { count(name: string): number };
     };
     rs2b0t: {
@@ -103,6 +103,7 @@ async function main(): Promise<void> {
         assert.equal(knife, 1, 'knife kept');
         assert(gained > 0, 'no fishing xp gained');
         assert(xpPerHour >= MIN_XP_HR, `xp/hr ${xpPerHour} below ${MIN_XP_HR}`);
+        const fishingLevel = await page.evaluate(() => (globalThis as never as Abi).__rs2b0t.Skills.level('fishing'));
         const tickDebug = await page.evaluate(() => {
             const bot = (globalThis as never as { rs2b0t: { runner: { bot?: { threeTickDebug?: () => unknown } } } }).rs2b0t.runner.bot;
             return bot?.threeTickDebug?.() ?? null;
@@ -111,11 +112,11 @@ async function main(): Promise<void> {
         await mkdir(directory, { recursive: true });
         await page.screenshot({ path: `${directory}/four-tick.png` });
         await writeFile(`${directory}/evidence.json`, JSON.stringify({
-            status: 'pass', spot: SPOT, startedAt, measuredXpStart, measuredXpEnd,
+            status: 'pass', spot: SPOT, fishingLevel, startedAt, measuredXpStart, measuredXpEnd,
             gained, elapsedMs, xpPerHour, minXpPerHour: MIN_XP_HR, logs, knife, fish, errors,
             rolls: rolls.length - 1, rollGapsMs: rolls.slice(1).map((r, i) => r.at - rolls[i]!.at), animRollTicks: rollTicks, animRollGaps: rollGaps, tickDebug, botLogs
         }, null, 2) + '\n');
-        console.log('PASS', JSON.stringify({ xpPerHour, gained, rolls: rolls.length - 1, animRolls: rollTicks.length, rollGaps, tickDebug, logs, knife, fish, botLogs: botLogs.slice(-5) }));
+        console.log('PASS', JSON.stringify({ fishingLevel, xpPerHour, gained, rolls: rolls.length - 1, animRolls: rollTicks.length, rollGaps, tickDebug, logs, knife, fish, botLogs: botLogs.slice(-5) }));
     } finally {
         await stopScript(page).catch(() => undefined);
         await logout(page).catch(() => undefined);
