@@ -22,6 +22,7 @@ const SPOT = new Tile(2716, 3532, 0);
 const KNIFE = 'Knife';
 const MAKE1 = 8889;
 const ROLL_ANIM = 623;
+const FLETCH_ANIM = 1248;
 const AXE_NAMES = ['Bronze axe', 'Iron axe', 'Steel axe', 'Black axe', 'Mithril axe', 'Adamant axe', 'Rune axe'];
 
 export const SETTINGS: SettingsSchema = {
@@ -39,8 +40,13 @@ export default class Seers3tFisher extends LoopingBot {
 
     private target: Target | null = null;
     private fourTickState: 'native' | 'running' = 'native';
-    private cycleStart = -1;
     private fourTickLastSerial = -1;
+    private sentTick = -1;
+    private awaitingLanding = false;
+    private nextSendTick = -1;
+    private aim = 0;
+    private late: number[] = [];
+    private lastAim = -1;
     private lastRollTick = -1;
     private lastCatchTick = -1;
     private lastRaw = 0;
@@ -117,19 +123,48 @@ export default class Seers3tFisher extends LoopingBot {
         if (this.fourTickState === 'native') {
             if (fresh && state.seq === ROLL_ANIM) {
                 this.sendBatch(tick);
-                this.cycleStart = tick;
                 this.fourTickState = 'running';
             }
             return;
         }
-        if (tick - this.cycleStart >= 3) {
+        if (this.awaitingLanding) {
+            if (fresh && state.seq === FLETCH_ANIM) {
+                const late = tick - this.sentTick - 1;
+                if (late >= 0 && late <= 3) {
+                    this.late.push(late);
+                    if (this.late.length > 6) this.late.shift();
+                    const aim = this.mode(this.late);
+                    if (aim !== this.lastAim) {
+                        this.lastAim = aim;
+                        this.log(`3t aim=${aim} lateness=[${this.late.join(',')}]`);
+                    }
+                    this.aim = aim;
+                }
+                this.awaitingLanding = false;
+                this.nextSendTick = tick + 2 - this.aim;
+            } else if (tick - this.sentTick > 4) {
+                this.fallback();
+            }
+            return;
+        }
+        if (this.nextSendTick >= 0 && tick >= this.nextSendTick) {
             if (this.lastCatchTick >= 0 && tick - this.lastCatchTick > 12) {
                 this.fallback();
                 return;
             }
             this.sendBatch(tick);
-            this.cycleStart += 3;
         }
+    }
+
+    private mode(values: readonly number[]): number {
+        const counts = new Map<number, number>();
+        for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+        let best = 0;
+        let bestCount = -1;
+        for (const [value, count] of counts) {
+            if (count > bestCount) { best = value; bestCount = count; }
+        }
+        return best;
     }
 
     private sendBatch(tick: number): void {
@@ -147,14 +182,18 @@ export default class Seers3tFisher extends LoopingBot {
         Input.useItemOnItem(knife.id, knife.slot, knife.snap.comId, log.id, log.slot, log.snap.comId);
         actions.ifButton(MAKE1);
         Input.interactNpc(this.target.index, 1);
-        this.rollGaps.push(this.cycleStart >= 0 ? tick - this.cycleStart : 0);
+        this.rollGaps.push(this.sentTick >= 0 ? tick - this.sentTick : 0);
+        this.sentTick = tick;
+        this.awaitingLanding = true;
+        this.nextSendTick = -1;
         this.lastRollTick = tick;
         this.setStatus(`3-tick batch @${tick}`);
     }
 
     private fallback(): void {
         this.fourTickState = 'native';
-        this.cycleStart = -1;
+        this.awaitingLanding = false;
+        this.nextSendTick = -1;
         if (this.target) void this.target.interact('Lure');
         this.setStatus('fallback Lure');
     }
