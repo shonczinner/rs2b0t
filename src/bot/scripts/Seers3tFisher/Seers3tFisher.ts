@@ -1,14 +1,12 @@
 import { actions, reader } from '../../adapter/ClientAdapter.js';
-import { Bank } from '../../api/bank/Bank.js';
 import { LoopingBot } from '../../api/bot/Bot.js';
 import { Equipment } from '../../api/equipment/Equipment.js';
 import { Execution } from '../../api/execution/Execution.js';
 import { Game } from '../../api/game/Game.js';
-import { GroundItems } from '../../api/grounditems/GroundItems.js';
 import { Inventory } from '../../api/inventory/Inventory.js';
-import { Locs } from '../../api/locs/Locs.js';
 import { Npcs } from '../../api/npcs/Npcs.js';
 import { Skills } from '../../api/skills/Skills.js';
+import { ChatDialog } from '../../api/ui/dialogue/ChatDialog.js';
 import { Traversal } from '../../api/walking/Traversal.js';
 import Tile from '../../geometry/Tile.js';
 import { Input } from '../../input/Input.js';
@@ -18,16 +16,12 @@ import { BotHost } from '../../runtime/BotHost.js';
 import { ScriptRunner } from '../../runtime/ScriptRunner.js';
 import type { SettingsSchema } from '../../runtime/Settings.js';
 import { isFletchableLogName } from '../GatheringBot/TickManipLogic.js';
+import { Seers3tProvisioner } from './Seers3tProvisioner.js';
 
 const SPOT = new Tile(2716, 3532, 0);
-const BANK = new Tile(2725, 3491, 0);
-const TREE_AREA = new Tile(2724, 3474, 0);
-const KNIFE_SPAWN = new Tile(2704, 3475, 0);
-const AXE_SPAWN = new Tile(2678, 3731, 0);
 const KNIFE = 'Knife';
 const MAKE1 = 8889;
 const ROLL_ANIM = 623;
-const FLETCH_ANIM = 1248;
 const AXE_NAMES = ['Bronze axe', 'Iron axe', 'Steel axe', 'Black axe', 'Mithril axe', 'Adamant axe', 'Rune axe'];
 
 export const SETTINGS: SettingsSchema = {
@@ -44,9 +38,8 @@ export default class Seers3tFisher extends LoopingBot {
     override loopDelay = 600;
 
     private target: Target | null = null;
-    private fourTickState: 'native' | 'sent' | 'armed' = 'native';
-    private fourTickSent = -1;
-    private fourTickRollDue = -1;
+    private fourTickState: 'native' | 'running' = 'native';
+    private cycleStart = -1;
     private fourTickLastSerial = -1;
     private lastRollTick = -1;
     private lastCatchTick = -1;
@@ -57,10 +50,18 @@ export default class Seers3tFisher extends LoopingBot {
     private fishCaught = 0;
     private rollGaps: number[] = [];
     private readonly xp = new XpTracker(['fishing'], Skills);
+    private provisioner!: Seers3tProvisioner;
+    private provisioned = false;
 
     override async onStart(): Promise<void> {
         await Execution.delayUntil(() => Game.ingame() && Game.tile() !== null, 0);
         this.startedAt = Date.now();
+        this.provisioner = new Seers3tProvisioner({
+            log: message => this.log(message),
+            setStatus: message => this.setStatus(message),
+            finish: reason => this.requestFinish(reason),
+            feathers: () => this.settings.num('feathers', 10_000)
+        });
         this.xp.begin();
         this.stopTick = BotHost.addTickListener(() => this.onTick());
         this.log('Seers3tFisher: provisioning axe, knife, log, rod and feathers');
@@ -73,8 +74,11 @@ export default class Seers3tFisher extends LoopingBot {
 
     override async loop(): Promise<void> {
         if (!Game.sceneReady()) return;
-        if (!(await this.ensureKit())) return;
-        if (!(await this.ensureSupplies())) return;
+        if (!this.provisioned || Inventory.count(KNIFE) < 1 || !this.carrierLog()) {
+            this.provisioned = false;
+            if (!(await this.provisioner.ensureAll())) return;
+            this.provisioned = true;
+        }
         const here = Game.tile();
         if (!here || Tile.from(here).distanceTo(SPOT) > 3) {
             this.setStatus('walking to the Seers spot');
@@ -111,28 +115,28 @@ export default class Seers3tFisher extends LoopingBot {
         this.fourTickLastSerial = state.serial;
 
         if (this.fourTickState === 'native') {
-            if (fresh && state.seq === ROLL_ANIM) this.sendBatch(tick);
+            if (fresh && state.seq === ROLL_ANIM) {
+                this.sendBatch(tick);
+                this.cycleStart = tick;
+                this.fourTickState = 'running';
+            }
             return;
         }
-        if (this.fourTickState === 'sent') {
-            if (tick === this.fourTickSent + 1) {
-                if (fresh && (state.seq === FLETCH_ANIM || state.seq === ROLL_ANIM)) {
-                    this.fourTickState = 'armed';
-                    this.fourTickRollDue = tick + 2;
-                }
+        if (tick - this.cycleStart >= 3) {
+            if (this.lastCatchTick >= 0 && tick - this.lastCatchTick > 12) {
+                this.fallback();
                 return;
             }
-            if (tick >= this.fourTickSent + 2) this.fallback();
-            return;
+            this.sendBatch(tick);
+            this.cycleStart += 3;
         }
-        if (this.fourTickState === 'armed' && tick >= this.fourTickRollDue) this.sendBatch(tick);
     }
 
     private sendBatch(tick: number): void {
         if (!this.target) return;
         const knife = Inventory.first(KNIFE);
         const log = this.carrierLog();
-        if (!knife || !log) {
+        if (!knife || !log || ChatDialog.isMakeMenu()) {
             this.setStatus('kit lost — reprovisioning');
             this.fourTickState = 'native';
             return;
@@ -143,15 +147,14 @@ export default class Seers3tFisher extends LoopingBot {
         Input.useItemOnItem(knife.id, knife.slot, knife.snap.comId, log.id, log.slot, log.snap.comId);
         actions.ifButton(MAKE1);
         Input.interactNpc(this.target.index, 1);
-        this.fourTickState = 'sent';
-        this.fourTickSent = tick;
-        this.rollGaps.push(this.lastRollTick >= 0 ? tick - this.lastRollTick : 0);
+        this.rollGaps.push(this.cycleStart >= 0 ? tick - this.cycleStart : 0);
         this.lastRollTick = tick;
         this.setStatus(`3-tick batch @${tick}`);
     }
 
     private fallback(): void {
         this.fourTickState = 'native';
+        this.cycleStart = -1;
         if (this.target) void this.target.interact('Lure');
         this.setStatus('fallback Lure');
     }
@@ -168,92 +171,6 @@ export default class Seers3tFisher extends LoopingBot {
 
     private findSpot(): Target | null {
         return Npcs.query().name('Fishing spot').action('Lure').nearest() as Target | null;
-    }
-
-    private async ensureKit(): Promise<boolean> {
-        if (!(await this.ensureAxe())) return false;
-        if (!(await this.ensureKnife())) return false;
-        if (!(await this.ensureLog())) return false;
-        return true;
-    }
-
-    private async ensureAxe(): Promise<boolean> {
-        if (AXE_NAMES.some(n => Inventory.count(n) > 0 || Equipment.contains(n))) return true;
-        const ground = GroundItems.query().name(...AXE_NAMES).within(12).nearest();
-        if (ground) {
-            this.setStatus('taking an axe');
-            await ground.interact('Take');
-            await Execution.delayUntilTicks(() => AXE_NAMES.some(n => Inventory.count(n) > 0), 6);
-            if (AXE_NAMES.some(n => Inventory.count(n) > 0)) return true;
-        }
-        await Traversal.walkResilient(AXE_SPAWN, { radius: 2, attempts: 4, timeoutMs: 120_000, log: m => this.log(m) });
-        const spawn = GroundItems.query().name(...AXE_NAMES).within(8).nearest();
-        if (!spawn) {
-            this.setStatus('no axe spawn — stopping');
-            this.requestFinish('Seers3tFisher: no axe and no axe spawn');
-            return false;
-        }
-        await spawn.interact('Take');
-        await Execution.delayUntilTicks(() => AXE_NAMES.some(n => Inventory.count(n) > 0), 6);
-        return AXE_NAMES.some(n => Inventory.count(n) > 0);
-    }
-
-    private async ensureKnife(): Promise<boolean> {
-        if (Inventory.count(KNIFE) > 0 || Equipment.contains(KNIFE)) return true;
-        const ground = GroundItems.query().name(KNIFE).within(12).nearest();
-        if (ground) {
-            this.setStatus('taking a knife');
-            await ground.interact('Take');
-            await Execution.delayUntilTicks(() => Inventory.count(KNIFE) > 0, 6);
-            if (Inventory.count(KNIFE) > 0) return true;
-        }
-        await Traversal.walkResilient(KNIFE_SPAWN, { radius: 2, attempts: 4, timeoutMs: 120_000, log: m => this.log(m) });
-        const spawn = GroundItems.query().name(KNIFE).within(8).nearest();
-        if (!spawn) {
-            this.setStatus('no knife spawn — stopping');
-            this.requestFinish('Seers3tFisher: no knife and no knife spawn');
-            return false;
-        }
-        await spawn.interact('Take');
-        await Execution.delayUntilTicks(() => Inventory.count(KNIFE) > 0, 6);
-        return Inventory.count(KNIFE) > 0;
-    }
-
-    private async ensureLog(): Promise<boolean> {
-        if (this.carrierLog()) return true;
-        let tree = Locs.query().name('Tree', 'Oak', 'Willow').action('Chop down').nearest();
-        if (!tree) {
-            await Traversal.walkResilient(TREE_AREA, { radius: 8, attempts: 3, timeoutMs: 90_000, log: m => this.log(m) });
-            tree = Locs.query().name('Tree', 'Oak', 'Willow').action('Chop down').nearest();
-        }
-        if (!tree) {
-            this.setStatus('no tree for a carrier log');
-            this.requestFinish('Seers3tFisher: no tree for a carrier log');
-            return false;
-        }
-        this.setStatus('chopping one carrier log');
-        await Traversal.walkTo(tree.tile(), { radius: 2, timeoutMs: 30_000, log: m => this.log(m) });
-        await tree.interact('Chop down');
-        if (!(await Execution.delayUntilTicks(() => this.carrierLog() !== null, 20))) {
-            this.setStatus('carrier log did not arrive');
-            return false;
-        }
-        return true;
-    }
-
-    private async ensureSupplies(): Promise<boolean> {
-        const haveRod = Inventory.count('Fly fishing rod') > 0;
-        const feathers = Inventory.count('Feather');
-        if (haveRod && feathers > 100) return true;
-        this.setStatus('banking for rod/feathers');
-        await Traversal.walkResilient(BANK, { radius: 2, attempts: 4, timeoutMs: 120_000, log: m => this.log(m) });
-        if (!(await Bank.openBooth(BANK, 'Bank booth', 'Use-quickly', m => this.log(m)))) return false;
-        if (!(await Bank.waitReady(4000, m => this.log(m)))) return false;
-        if (!haveRod) await Bank.withdrawX('Fly fishing rod', 1);
-        const want = Math.max(0, this.settings.num('feathers', 10_000) - Inventory.count('Feather'));
-        if (want > 0) await Bank.withdrawX('Feather', want);
-        await Bank.close();
-        return Inventory.count('Fly fishing rod') > 0 && Inventory.count('Feather') > 0;
     }
 
     private setStatus(s: string): void {
