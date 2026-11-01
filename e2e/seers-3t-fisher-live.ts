@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { deployIsolatedClient, launchBrowser, logout, setSettings, stopScript } from './lib/harness.js';
 import { cheatQuiet, mainlandAccount, startScript, teleTo } from './tutorial/harness.js';
+import { cadence } from './fisher-shilo/cadence.js';
 
 type Abi = {
     __rs2b0t: {
@@ -30,6 +31,8 @@ async function main(): Promise<void> {
     page.on('pageerror', error => errors.push(error.message));
     try {
         await mainlandAccount(page, base, tag, client.page);
+        const timing = await cadence(page, false);
+        assert(timing.after >= 550 && timing.after <= 650, `600ms server required (measured ${timing.after}ms)`);
         assert(await cheatQuiet(page, 'setstat fishing 99'), 'fishing fixture');
         assert(await teleTo(page, SPOT, 0, 20_000), 'teleport to Seers spot');
         for (const command of ['~clearinv', 'give fly_fishing_rod 1', 'give feather 5000', 'give bronze_axe 1', 'give knife 1']) {
@@ -86,10 +89,10 @@ async function main(): Promise<void> {
         await mkdir(directory, { recursive: true });
         await page.screenshot({ path: `${directory}/seers-3t.png` });
         await writeFile(`${directory}/evidence.json`, JSON.stringify({
-            status: 'pass', spot: SPOT, fishingLevel, kit, measuredXpStart, measuredXpEnd,
+            status: 'pass', spot: SPOT, tickMs: timing.after, fishingLevel, kit, measuredXpStart, measuredXpEnd,
             gained, elapsedMs, xpPerHour, minXpPerHour: MIN_XP_HR, errors
         }, null, 2) + '\n');
-        console.log('PASS', JSON.stringify({ fishingLevel, kit, xpPerHour, gained }));
+        console.log('PASS', JSON.stringify({ tickMs: timing.after, fishingLevel, kit, xpPerHour, gained }));
     } finally {
         await stopScript(page).catch(() => undefined);
         await logout(page).catch(() => undefined);
