@@ -39,7 +39,7 @@ async function main(): Promise<void> {
         assert(await cheatQuiet(page, 'setstat woodcutting 99'), 'woodcutting fixture');
         assert(await cheatQuiet(page, 'setstat fletching 99'), 'fletching fixture');
         assert(await teleTo(page, CAMP, 0, 20_000), 'teleport');
-        for (const command of ['~clearinv', 'give rune_axe 1', 'give knife 1']) {
+        for (const command of ['~clearinv', 'give rune_axe 1', 'give knife 1', 'give logs 3']) {
             assert(await cheatQuiet(page, command), command);
         }
         await setSettings(page, 'TickWoodcutter', {

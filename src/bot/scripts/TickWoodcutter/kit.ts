@@ -14,6 +14,7 @@ export function hasKnife(): boolean {
 }
 
 export function kitReady(preferredCarrier?: string): boolean {
-    const carrier = preferredCarrier ? Inventory.first(preferredCarrier) : findCarrier();
+    // The preferred tier is a preference: any fletchable log is a valid carrier.
+    const carrier = (preferredCarrier ? Inventory.first(preferredCarrier) : null) ?? findCarrier();
     return hasAxe() && hasKnife() && carrier !== null;
 }

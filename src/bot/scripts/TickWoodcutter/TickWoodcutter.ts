@@ -15,7 +15,7 @@ import { BotHost } from '../../runtime/BotHost.js';
 import { carrierName, dropExtraLogs, findCarrier } from './carrier.js';
 import { restockKit } from './banking.js';
 import { paintTickWoodcutter, type HudState } from './hud.js';
-import { kitReady } from './kit.js';
+import { hasAxe, hasKnife, kitReady } from './kit.js';
 import { ensureKit, type ProvisionContext } from './provision.js';
 import { resolveTravel, awayFromAnchor } from './travel.js';
 import { TickManipController, type TickManipHost } from './tickmanipcontroller.js';
@@ -56,6 +56,10 @@ export default class TickWoodcutter extends LoopingBot implements TickManipHost 
         this.bankStand = plan.bankStand;
         this.radius = this.settings.num('radius', 24);
         this.carrierLogName = carrierName(this.treeName, Skills.level('fletching'));
+        const carrier = Inventory.first(this.carrierLogName) ?? findCarrier();
+        this.log(
+            `kit: axe=${hasAxe()} knife=${hasKnife()} carrier=${carrier?.name ?? 'missing'} (preferred ${this.carrierLogName})`
+        );
         this.startXp = Skills.xp('woodcutting');
         this.startedAt = Date.now();
         this.xp.begin();

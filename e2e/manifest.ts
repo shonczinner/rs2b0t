@@ -1300,7 +1300,7 @@ export const CASES: readonly Case[] = [
         status: 'unvetted',
         args: [],
         budgetMin: 8,
-        note: 'Standalone TickWoodcutter starts at Seers Willows with no carrier, provisions one by the fletching rule, measures 3-tick willow XP/hr at 600ms, then fills the pack and asserts the cycle resumes with the carrier kept'
+        note: 'Standalone TickWoodcutter starts at Seers Willows with axe, knife and a carrier log already held, measures 3-tick willow XP/hr at 600ms, then fills the pack and asserts the cycle resumes with the carrier kept'
     },
     {
         id: 'woodcutter-three-tick-live',

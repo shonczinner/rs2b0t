@@ -8,7 +8,7 @@ import { KNIFE } from '../../api/acquisition/Tools.js';
 import { Skills } from '../../api/skills/Skills.js';
 import Tile from '../../geometry/Tile.js';
 import { restockKit, withdrawCoins } from './banking.js';
-import { carrierName, dropExtraLogs, logForTreeName } from './carrier.js';
+import { carrierName, dropExtraLogs, findCarrier, logForTreeName } from './carrier.js';
 import { AXE_NAMES, hasAxe, hasKnife, kitReady } from './kit.js';
 import { acquireAxeAtBob } from './tools.js';
 
@@ -43,7 +43,8 @@ export async function ensureKit(ctx: ProvisionContext): Promise<boolean> {
     if (!hasKnife()) {
         await takeGround(ctx, [KNIFE], SEERS_KNIFE_SPAWN, 'knife');
     }
-    if (!Inventory.first(preferred)) {
+    // Only acquire a carrier when the pack has none; a lower tier is still valid.
+    if (!findCarrier()) {
         await chopCarrier(ctx, preferred);
     }
     if (!kitReady(preferred)) {
