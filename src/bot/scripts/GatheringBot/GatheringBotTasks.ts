@@ -2185,6 +2185,17 @@ export class RestockGatherTool implements Task {
         if (plan.length === 0) {
             const still = this.bot.missingGearNames();
             if (still.length > 0) {
+                if (this.bot.threeTickWoodcutMode() && !this.bot.hasKnife()) {
+                    if (Bank.isOpen()) {
+                        await this.bot.closeScriptBank(log, { allowForgetful: false });
+                    }
+                    this.bot.setStatus('kit: taking the Seers knife');
+                    if (await this.bot.takeThreeTickKnife(log) && this.bot.hasGear()) {
+                        this.bot.setStatus('restock: returning to camp');
+                        await this.bot.walkHomeIfNeeded(log);
+                        return;
+                    }
+                }
                 if (this.bot.toolAcquireEnabled() && this.bot.acquireReady()) {
                     const buy = planGatherToolAcquire(this.bot.toolReqsList(), this.bot.acquireWorldWithBank(), {
                         upgrade: false
@@ -2265,6 +2276,16 @@ export class RestockGatherTool implements Task {
 
         if (!this.bot.hasGear()) {
             const still = this.bot.missingGearNames();
+            if (this.bot.threeTickWoodcutMode() && !this.bot.hasKnife()) {
+                this.bot.setStatus('kit: taking the Seers knife');
+                if (await this.bot.takeThreeTickKnife(log)) {
+                    if (this.bot.hasGear()) {
+                        this.bot.setStatus('restock: returning to camp');
+                        await this.bot.walkHomeIfNeeded(log);
+                        return;
+                    }
+                }
+            }
             if (this.bot.toolAcquireEnabled() && this.bot.acquireReady()) {
                 const buy = planGatherToolAcquire(this.bot.toolReqsList(), this.bot.acquireWorldWithBank(), {
                     upgrade: false
@@ -2678,6 +2699,11 @@ export class Gather implements Task {
         }
         this.bot.noteGatherRoll();
 
+        if (profile.threeTickWoodcutCycle) {
+            // The event-driven controller sends the knife+Make-1+click batch on the log edge.
+            return true;
+        }
+
         if (profile.useKnifeDelay) {
             if (!this.bot.hasKnifeDelayKit() && !ChatDialog.isMakeMenu()) {
                 this.bot.log('tick: knife delay needs Knife + 1 fletchable log');
@@ -3007,6 +3033,9 @@ export class Gather implements Task {
                 return;
             }
             this.activeMineTile = tile;
+            if (this.bot.threeTickWoodcutMode()) {
+                this.bot.setWoodcutTarget(target);
+            }
 
             await Execution.delayUntilTicks(() => Inventory.used() > before || Game.animating() || this.shouldYieldMine(tile), 20);
             await Sustain.run();
@@ -3211,11 +3240,9 @@ export class Gather implements Task {
                 },
                 4
             );
-            // Roll cycle start forward by 6 so phase 0 lands on the next click beat.
-            const s = this.bot.farmerCycleStartTick();
-            if (Game.tick() - s >= 6) {
-                this.bot.noteFarmerCycleStart(s + 6 * Math.floor((Game.tick() - s) / 6));
-            }
+            // Re-anchor one tick ahead so the next task beat is phase 0 (click-tree).
+            // Rolling start +6 lands the next beat on the wait branch and skips the click.
+            this.bot.noteFarmerCycleStart(Game.tick() + 1);
             return;
         }
 

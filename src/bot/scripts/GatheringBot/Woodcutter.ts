@@ -37,6 +37,13 @@ export const WOODCUTTER_SETTINGS: SettingsSchema = {
         group: 'Tick manip',
         help: TICK_MANIP_UNSHIPPED_HELP
     },
+    threeTickWoodcut: {
+        type: 'boolean',
+        default: false,
+        label: '3-tick willows (knife + log)',
+        group: 'Tick manip',
+        help: 'Roll-anchored 3-tick batch: knife the carrier log, Make-1, click the tree on the log edge, repeat every 3 ticks. Needs a Knife and enough Fletching for the tree\'s log (oak 20, willow 35, maple 50, yew 65, magic 80; normal logs use shafts at 1). Power/drop mode is allowed.'
+    },
     burnMode: {
         type: 'string',
         default: 'Off',

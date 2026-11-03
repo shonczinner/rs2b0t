@@ -1294,6 +1294,15 @@ export const CASES: readonly Case[] = [
         note: 'checks Miner batch dropping with Bank=false, completes a mining/drop cycle, and preserves supplies across iron, clay and coal camps'
     },
     {
+        id: 'woodcutter-three-tick-live',
+        harness: 'woodcutter-three-tick-live.ts',
+        covers: { scripts: ['GatheringBot'] },
+        status: 'unvetted',
+        args: [],
+        budgetMin: 8,
+        note: 'Woodcutter starts at Seers Willows with an axe but no knife, provisions the Seers knife, measures 3-tick willow xp/logs per hour at the real 600ms tick, then fills the pack and asserts the drop cycle resumes'
+    },
+    {
         id: 'miner-bank-food-live',
         harness: 'miner-bank-food-live.ts',
         covers: { scripts: ['GatheringBot'] },

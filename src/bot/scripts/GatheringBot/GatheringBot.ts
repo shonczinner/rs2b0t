@@ -5,13 +5,14 @@ import {
     shouldWalkHomeToGatherAnchor,
     tileWithinLeash
 } from '../../api/tasks/Anchor.js';
-import { reader } from '../../adapter/ClientAdapter.js';
+import { actions, reader } from '../../adapter/ClientAdapter.js';
 import { TaskBot } from '../../api/bot/Bot.js';
 import { ShiloSupplyTrip } from './ShiloSupplyTrip.js';
 import { Execution } from '../../api/execution/Execution.js';
 import { EventSignal } from '../../api/execution/EventSignal.js';
 import { Game } from '../../api/game/Game.js';
 import { Sustain } from '../../api/sustain/Sustain.js';
+import { BotHost } from '../../runtime/BotHost.js';
 import Tile from '../../geometry/Tile.js';
 import { Bank, withdrawOp, type BackpackItem } from '../../api/bank/Bank.js';
 import { ChatDialog } from '../../api/ui/dialogue/ChatDialog.js';
@@ -28,6 +29,7 @@ import {
 } from '../../api/combat/food.js';
 import { ContinueDialog } from '../../api/tasks/ContinueDialog.js';
 import { Locs } from '../../api/locs/Locs.js';
+import { GroundItems } from '../../api/grounditems/GroundItems.js';
 import { Npcs } from '../../api/npcs/Npcs.js';
 import { Traversal } from '../../api/walking/Traversal.js';
 import { ScriptRunner } from '../../runtime/ScriptRunner.js';
@@ -75,6 +77,7 @@ import {
     bestHeldToolNames,
     bestPickaxe,
     canWieldTool,
+    exactTool,
     hasAllTools,
     missingToolLabels,
     pickaxeReq,
@@ -125,10 +128,12 @@ import {
     SHORTBOW_NAMES,
     TICK_MANIP_KNIFE,
     extraDelayLogsToDrop,
+    fletchingLevelForLog,
     isFletchableLogName,
     isShortbowName,
     miningRateForPickaxe,
     profileForSetting,
+    threeTickWoodcutProfile,
     type TickManipProfile
 } from './TickManipLogic.js';
 import {
@@ -243,6 +248,33 @@ import {
 
 /** Default half-size of the Auto (start) burn box around the script start tile. */
 const LOCAL_BURN_HALF = 8;
+
+/** Seers knife spawn used when the bank has no knife for the 3-tick kit. */
+const THREE_TICK_KNIFE_SPAWN = new Tile(2704, 3475, 0);
+
+/** Fletch landing animation and the 289 axe swing range (867-879). */
+const FLETCH_ANIM = 1248;
+const isAxeAnim = (seq: number): boolean => seq >= 867 && seq <= 879;
+
+/** Live tree the raw batch clicks; carries the loc snapshot fields the packet needs. */
+type WoodcutTarget = {
+    id: number;
+    snap: { ops: (string | null)[] };
+    tile(): Tile;
+    interact(action: string): boolean | Promise<boolean>;
+};
+
+type WoodcutDebug = {
+    batches: number[];
+    gaps: number[];
+    swings: number[];
+    makeSeen: number;
+    fletchSeen: number;
+    lastActions: (boolean | 'pending')[];
+    aim: number;
+    late: number[];
+    fallbacks: number;
+};
 
 /** The family this script's paint signs itself with, the way the Jive scripts carry theirs. */
 const GATHER_BYLINE = 'Gathering scripts';
@@ -526,6 +558,21 @@ export default class GatheringBot extends TaskBot {
      * Forced Off under power mode (Location None).
      */
     private tickManip: TickManipProfile = profileForSetting('mine', 'Off');
+    private threeTickWoodcut = false;
+    private wcTarget: WoodcutTarget | null = null;
+    private wcLastSwing = -1;
+    private wcLastSerial = -1;
+    private wcNextBatch = -1;
+    private wcWalking = false;
+    private wcFlight: { sent: number; at: number; xp: number; acked: boolean } | null = null;
+    private wcBatches: number[] = [];
+    private wcBatchGaps: number[] = [];
+    private wcSwingTicks: number[] = [];
+    private wcMakeSeen = 0;
+    private wcFletchSeen = 0;
+    private wcLastActions: (boolean | 'pending')[] = [];
+    private wcFallbacks = 0;
+    private stopWoodcutFrame: (() => void) | null = null;
     /** Last inventory-used mark used to detect a resource roll for tick manip. */
     private lastRollTick = -1;
     /** Farmer willows 6-tick cycle anchor (Game.tick at cycle start). */
@@ -634,7 +681,9 @@ export default class GatheringBot extends TaskBot {
             this.target = this.settings.str('treeName', 'Tree');
             this.action = 'Chop down';
             this.dropMatch = 'log';
-            this.toolReqs = [axeReq()];
+            this.toolReqs = this.settings.bool('threeTickWoodcut', false)
+                ? [axeReq(), exactTool('Knife')]
+                : [axeReq()];
             this.productKeywords = ['log'];
         } else {
             this.productKeywords = [this.dropMatch];
@@ -644,7 +693,9 @@ export default class GatheringBot extends TaskBot {
                 this.chopping = true;
                 this.targetType = 'loc';
                 this.action = 'Chop down';
-                this.toolReqs = [axeReq()];
+                this.toolReqs = this.settings.bool('threeTickWoodcut', false)
+                    ? [axeReq(), exactTool('Knife')]
+                    : [axeReq()];
                 this.productKeywords = this.dropMatch.includes('log') ? [this.dropMatch] : ['log'];
             } else if (act.includes('mine') || tgt.includes('rock')) {
                 this.toolReqs = [pickaxeReq()];
@@ -774,8 +825,11 @@ export default class GatheringBot extends TaskBot {
                 skill && 'tickManip' in this.settings.raw()
                     ? this.settings.str('tickManip', 'Off')
                     : 'Off';
-            this.tickManip = skill ? profileForSetting(skill, rawLabel) : profileForSetting('mine', 'Off');
-            if (this.tickManip.method !== 'off' && this.powerMode) {
+            this.threeTickWoodcut = this.chopping && this.settings.bool('threeTickWoodcut', false);
+            this.tickManip = this.threeTickWoodcut
+                ? threeTickWoodcutProfile()
+                : skill ? profileForSetting(skill, rawLabel) : profileForSetting('mine', 'Off');
+            if (this.tickManip.method !== 'off' && this.powerMode && !this.threeTickWoodcut) {
                 this.log(`tick manip: '${this.tickManip.label}' disabled under Bank=false (power)`);
                 this.tickManip = profileForSetting(skill ?? 'mine', 'Off');
             } else if (this.tickManip.method !== 'off') {
@@ -789,6 +843,17 @@ export default class GatheringBot extends TaskBot {
                         (this.tickManip.cookEatInterleave ? ' [cook/eat interleave]' : '')
                 );
             }
+        }
+
+        if (this.threeTickWoodcut && !this.threeTickWoodcutLevelOk()) {
+            this.requestFinish(
+                `3t ${logsForTree(this.target).toLowerCase()} needs Fletching ${this.threeTickWoodcutLevel()} (you have ${Skills.level('fletching')})`
+            );
+            return;
+        }
+        if (this.threeTickWoodcut) {
+            this.stopWoodcutFrame = BotHost.addFrameListener(() => this.onWoodcutTick());
+            this.log('3-tick woodcut controller: client frame cadence');
         }
 
         if (this.cookMode !== 'off' && this.powerMode) {
@@ -1097,6 +1162,17 @@ export default class GatheringBot extends TaskBot {
         const cookTasks = cookOn || cooker;
         const bankCatch = new BankCatch(this);
         const minerFoodLoop = this.minerFoodEnabled();
+        if (this.threeTickWoodcut) {
+            // The raw 3-tick batch needs exclusive control of the tree and interface.
+            this.add(
+                new ContinueDialog(),
+                new StartupProvision(this),
+                new RestockGatherTool(this),
+                new ClearPackJunk(this),
+                new DropProduct(this)
+            );
+            return;
+        }
         this.add(
             new ContinueDialog(),
             ...(minerFoodLoop ? [new MinerEatFood(this)] : []),
@@ -1205,8 +1281,12 @@ export default class GatheringBot extends TaskBot {
         // Knife + one delay log for knife-delay / farmer 6t (#160).
         if (this.tickManip.useKnifeDelay || this.tickManip.farmerWillowCycle) {
             names.add(TICK_MANIP_KNIFE);
-            // Prefer the log type matching the tree when chopping; else keep any fletchable.
-            if (this.chopping) {
+            // 3-tick keeps a spare carrier log even when the tree's log type differs.
+            if (this.threeTickWoodcut) {
+                for (const log of FLETCHABLE_LOG_NAMES) {
+                    names.add(log);
+                }
+            } else if (this.chopping) {
                 names.add(logsForTree(this.target));
             } else {
                 for (const log of FLETCHABLE_LOG_NAMES) {
@@ -2211,6 +2291,55 @@ export default class GatheringBot extends TaskBot {
         });
     }
 
+    threeTickWoodcutMode(): boolean {
+        return this.threeTickWoodcut;
+    }
+
+    /** Fletching level the tree's log needs before the knife delay can open a make menu. */
+    threeTickWoodcutLevel(): number {
+        return fletchingLevelForLog(logsForTree(this.target));
+    }
+
+    private threeTickWoodcutLevelOk(): boolean {
+        return Skills.level('fletching') >= this.threeTickWoodcutLevel();
+    }
+
+    hasKnife(): boolean {
+        return this.heldHas(TICK_MANIP_KNIFE);
+    }
+
+    /** Bank had no knife: take the Seers ground spawn before falling back to a stop. */
+    async takeThreeTickKnife(log: (m: string) => void = m => this.log(`  ${m}`)): Promise<boolean> {
+        return this.takeThreeTickGround([TICK_MANIP_KNIFE], THREE_TICK_KNIFE_SPAWN, 'knife', log);
+    }
+
+    private async takeThreeTickGround(
+        names: readonly string[],
+        spawn: Tile,
+        label: string,
+        log: (m: string) => void
+    ): Promise<boolean> {
+        const here = GroundItems.query().name(...names).within(12).nearest();
+        if (here) {
+            log(`kit: taking the ${label} from the ground`);
+            await here.interact('Take');
+            if (await Execution.delayUntilTicks(() => names.some(n => this.heldHas(n)), 6)) {
+                return true;
+            }
+        }
+        log(`kit: walking to the ${label} spawn`);
+        if (!(await Traversal.walkResilient(spawn, { radius: 2, attempts: 3, timeoutMs: 180_000, log }))) {
+            return false;
+        }
+        const drop = GroundItems.query().name(...names).within(8).nearest();
+        if (!drop) {
+            log(`kit: no ${label} at the spawn point`);
+            return false;
+        }
+        await drop.interact('Take');
+        return Execution.delayUntilTicks(() => names.some(n => this.heldHas(n)), 6);
+    }
+
     /** Mark a resource roll tick for knife-delay / timed reclick planners. */
     noteGatherRoll(tick = Game.tick()): void {
         this.lastRollTick = Math.floor(tick);
@@ -2218,6 +2347,205 @@ export default class GatheringBot extends TaskBot {
 
     lastGatherRollTick(): number {
         return this.lastRollTick;
+    }
+
+    /** Tree the 3-tick controller should click; set by the woodcutting gather path. */
+    setWoodcutTarget(target: WoodcutTarget | null): void {
+        this.wcTarget = target;
+    }
+
+    threeTickWoodcutDebug(): WoodcutDebug {
+        return {
+            batches: [...this.wcBatches],
+            gaps: [...this.wcBatchGaps],
+            swings: [...this.wcSwingTicks],
+            makeSeen: this.wcMakeSeen,
+            fletchSeen: this.wcFletchSeen,
+            lastActions: [...this.wcLastActions],
+            aim: 0,
+            late: [],
+            fallbacks: this.wcFallbacks
+        };
+    }
+
+    override onStop(): void {
+        this.stopWoodcutFrame?.();
+        this.stopWoodcutFrame = null;
+    }
+
+    /**
+     * Raw 3-tick batch (from SeersTickWoodcutter 1.21): one socket write with
+     * OPHELDU + IF_BUTTON 8889 + CLOSE_MODAL + OPLOC, then the next batch at sent+3.
+     */
+    private onWoodcutTick(): void {
+        if (!this.threeTickWoodcut || this.tickManip.method !== 'three-tick-wc') {
+            return;
+        }
+        if (Bank.isOpen() || !this.hasGear() || this.awayFromGatherSpot(6) || Inventory.isFull()) {
+            return;
+        }
+        // The reference waits for the interface to close before every batch.
+        if (ChatDialog.isOpen() || reader.modals().main !== -1) {
+            actions.closeModalPacket();
+            actions.flushOut();
+            return;
+        }
+        const state = reader.selfAnimState();
+        const tick = Game.tick();
+        const now = Date.now();
+        const fresh = state ? state.serial !== this.wcLastSerial : false;
+        if (state) {
+            this.wcLastSerial = state.serial;
+            if (fresh && state.seq === FLETCH_ANIM) this.wcFletchSeen++;
+        }
+        if (ChatDialog.isMakeMenu()) this.wcMakeSeen++;
+
+        if (this.wcTarget && this.willowGap(this.wcTarget) !== 1) {
+            // Not on the willow edge yet: click to path there; never batch from range.
+            if (tick - (this.wcLastSwing >= 0 ? this.wcLastSwing : -999) >= 8) {
+                this.wcLastSwing = tick;
+                void this.wcTarget.interact('Chop down');
+            }
+            return;
+        }
+        if (this.wcFlight) {
+            if (tick > this.wcFlight.sent && Skills.xp('woodcutting') > this.wcFlight.xp) {
+                this.wcFlight.acked = true;
+            }
+            if (fresh && state && (state.seq === FLETCH_ANIM || isAxeAnim(state.seq))) {
+                this.wcFlight.acked = true;
+            }
+            if (tick >= this.wcFlight.sent + 3 && this.wcFlight.acked) {
+                this.wcFlight = null;
+                this.wcNextBatch = tick;
+                this.sendWoodcutBatch(tick);
+            } else if (tick - this.wcFlight.sent >= 4 && now - this.wcFlight.at > 1800) {
+                this.wcFlight = null;
+                this.wcNextBatch = tick + 12;
+                this.wcFallbacks++;
+                this.refreshWoodcutTarget();
+                if (this.wcTarget) void this.wcTarget.interact('Chop down');
+            }
+            return;
+        }
+
+        const swing = !!state && fresh && isAxeAnim(state.seq);
+        if (this.wcNextBatch < 0) {
+            if (swing) {
+                this.wcLastSwing = tick;
+                this.wcSwingTicks.push(tick);
+                this.wcNextBatch = tick;
+            } else {
+                // Nothing is chopping yet: start the tree, like the reference's initialize path.
+                this.refreshWoodcutTarget();
+                if (this.wcTarget && tick - this.wcLastSwing >= 8) {
+                    this.wcLastSwing = tick;
+                    void this.wcTarget.interact('Chop down');
+                }
+                return;
+            }
+        }
+        // Batch only on the swing edge: the click must interrupt the running animation.
+        if (swing && tick >= this.wcNextBatch) {
+            this.sendWoodcutBatch(tick);
+            return;
+        }
+        // Keep the chop alive between batches; a stopped animation means no swing edge.
+        if (tick - this.wcLastSwing >= 6) {
+            this.refreshWoodcutTarget();
+            const target = this.wcTarget;
+            if (target && !this.wcWalking) {
+                this.wcWalking = true;
+                const tile = target.tile();
+                void Traversal.walkTo(tile, { radius: 1, timeoutMs: 15_000 })
+                    .catch(() => false)
+                    .finally(() => {
+                        this.wcWalking = false;
+                        void target.interact('Chop down');
+                    });
+            }
+            this.wcLastSwing = tick;
+        }
+    }
+
+    private sendWoodcutBatch(tick: number): void {
+        this.refreshWoodcutTarget();
+        const target = this.wcTarget;
+        const knife = Inventory.first(TICK_MANIP_KNIFE);
+        const carrier = this.carrierLog();
+        if (!target || !knife || !carrier) {
+            this.wcNextBatch = tick + 1;
+            return;
+        }
+        // Reference order: drop one extra log and flush, then the batch in its own write.
+        for (const log of Inventory.items()
+            .filter(item => isFletchableLogName(item.name) && item.slot !== carrier.slot)
+            .slice(0, 1)) {
+            void log.interact('Drop');
+        }
+        actions.flushOut();
+        const ok = actions.woodcutBatchRaw(
+            { id: knife.id, slot: knife.slot, comId: knife.snap.comId },
+            { id: carrier.id, slot: carrier.slot, comId: carrier.snap.comId },
+            { id: target.id, x: target.tile().x, z: target.tile().z, ops: target.snap.ops },
+            'Chop down'
+        );
+        this.wcLastActions = [ok, 'pending', 'pending'];
+        this.wcBatches.push(tick);
+        if (this.wcBatches.length > 1) {
+            this.wcBatchGaps.push(tick - this.wcBatches[this.wcBatches.length - 2]!);
+        }
+        this.wcFlight = { sent: tick, at: Date.now(), xp: Skills.xp('woodcutting'), acked: false };
+        this.setStatus(`3-tick woodcut: batch @${tick}`);
+    }
+
+    /** Orthogonal gap to a willow's 2x2 footprint (reference resourceReady). */
+    private willowGap(loc: WoodcutTarget): number {
+        const here = Game.tile();
+        if (!here) {
+            return Infinity;
+        }
+        const t = loc.tile();
+        if (t.level !== here.level) {
+            return Infinity;
+        }
+        const dx = Math.max(t.x - here.x, 0, here.x - (t.x + 1));
+        const dz = Math.max(t.z - here.z, 0, here.z - (t.z + 1));
+        return dx + dz;
+    }
+
+    private refreshWoodcutTarget(): void {
+        const trees = Locs.query().name(this.targetName()).action(this.actionName()).results();
+        if (trees.length === 0) {
+            return;
+        }
+        // Reference batches only from the willow edge; pick an adjacent tree first.
+        const ready = trees
+            .filter(tree => this.willowGap(tree as WoodcutTarget) === 1)
+            .sort((a, b) => a.distance() - b.distance())[0];
+        const tree = ready ?? trees.sort((a, b) => a.distance() - b.distance())[0];
+        if (tree) {
+            this.wcTarget = tree;
+        }
+    }
+
+    /** Carrier: a reserved normal Logs (shafts at Fletching 1), else the tree's log. */
+    carrierLog() {
+        return Inventory.first('Logs') ?? this.delayLogItem();
+    }
+
+    private wcMode(values: readonly number[]): number {
+        const counts = new Map<number, number>();
+        for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+        let best = 0;
+        let occurrences = -1;
+        for (const [value, count] of counts) {
+            if (count > occurrences) {
+                best = value;
+                occurrences = count;
+            }
+        }
+        return best;
     }
 
     farmerCycleStartTick(): number {

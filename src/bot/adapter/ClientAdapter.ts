@@ -495,6 +495,18 @@ export const reader = {
         return raw?.localPlayer?.primaryAnim ?? -1;
     },
 
+    selfAnimState(): { seq: number; cycle: number; serial: number } | null {
+        const player = raw?.localPlayer;
+        return player
+            ? { seq: player.primaryAnim, cycle: player.primaryAnimCycle, serial: player.primaryAnimSerial }
+            : null;
+    },
+
+    /** Last game-chat lines, oldest first (used for local server tracing). */
+    gameMessages(): string[] {
+        return (raw?.chatText ?? []).filter((text): text is string => !!text);
+    },
+
     selfChat(): string | null {
         return raw?.localPlayer?.chatMessage ?? null;
     },
@@ -1866,6 +1878,84 @@ export const actions = {
         }
 
         return actions.menuAction(MiniMenuAction.CLOSE_BUTTON, 0, 0, comId);
+    },
+
+    /** Raw IF_BUTTON: the make menu opens in the same input pass, before the client knows it. */
+    ifButtonPacket(comId: number): boolean {
+        if (!raw) {
+            return false;
+        }
+        raw.out.p1Enc(ClientProt.IF_BUTTON);
+        raw.out.p2(comId);
+        return true;
+    },
+
+    /** Raw RESUME_PAUSEBUTTON: make-1 buttons are if_addresumebutton, not plain IF_BUTTON. */
+    resumePauseButtonPacket(comId: number): boolean {
+        if (!raw) {
+            return false;
+        }
+        raw.out.p1Enc(ClientProt.RESUME_PAUSEBUTTON);
+        raw.out.p2(comId);
+        return true;
+    },
+
+    /** Write the client's current packet buffer as one socket write. */
+    flushOut(): boolean {
+        if (!raw || !raw.stream) {
+            return false;
+        }
+        const out = raw.out;
+        if (!out.pos) {
+            return false;
+        }
+        (raw.stream as { write(data: Uint8Array, len: number): void }).write(out.data as Uint8Array, out.pos);
+        out.pos = 0;
+        return true;
+    },
+
+    /**
+     * One raw 3-tick woodcut batch, flushed as a single write:
+     * OPHELDU(s), IF_BUTTON 8889, CLOSE_MODAL 93, OPLOC.
+     */
+    woodcutBatchRaw(
+        knife: { id: number; slot: number; comId: number },
+        carrier: { id: number; slot: number; comId: number },
+        loc: { id: number; x: number; z: number; ops: readonly (string | null)[] },
+        op: string
+    ): boolean {
+        if (!raw) {
+            return false;
+        }
+        const index = loc.ops.findIndex(entry => entry?.toLowerCase() === op.toLowerCase());
+        if (index < 0 || index >= 5) {
+            return false;
+        }
+        const out = raw.out;
+        out.p1Enc(200);
+        out.p2(carrier.id);
+        out.p2(carrier.slot);
+        out.p2(carrier.comId);
+        out.p2(knife.id);
+        out.p2(knife.slot);
+        out.p2(knife.comId);
+        out.p1Enc(86);
+        out.p2(8889);
+        out.p1Enc(93);
+        out.p1Enc([10, 45, 196, 53, 126][index]!);
+        out.p2(loc.x);
+        out.p2(loc.z);
+        out.p2(loc.id);
+        return this.flushOut();
+    },
+
+    /** CLOSE_MODAL packet (opcode 93): the make menu has no close button to click. */
+    closeModalPacket(): boolean {
+        if (!raw) {
+            return false;
+        }
+        raw.out.p1Enc(ClientProt.CLOSE_MODAL);
+        return true;
     }
 };
 

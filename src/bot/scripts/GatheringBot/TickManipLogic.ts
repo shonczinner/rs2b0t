@@ -51,7 +51,7 @@ export const WC_TICK_MANIP_OPTIONS = [
     '3t willows shortbow rapid'
 ] as const;
 
-type WcTickManip = 'off' | 'knife-delay' | '2t-oaks' | '3t-farmer' | '3t-shortbow';
+type WcTickManip = 'off' | 'knife-delay' | '2t-oaks' | '3t-farmer' | '3t-shortbow' | 'three-tick-wc';
 
 type TickManipMethod = FishTickManip | MineTickManip | WcTickManip;
 
@@ -78,6 +78,8 @@ export interface TickManipProfile {
     nativeCycleTicks: number | null;
     /** Farmer willows 6-tick phase machine (tree / cut / drop). */
     farmerWillowCycle: boolean;
+    /** Roll-anchored knife + Make-1 + click 3-tick woodcutting batch. */
+    threeTickWoodcutCycle: boolean;
     /** Interleave cook+eat during fishing (Tannerfishing). */
     cookEatInterleave: boolean;
     /** May die, same product risk as Location Auto. */
@@ -95,6 +97,7 @@ const OFF_PROFILE = (skill: TickManipSkill): TickManipProfile => ({
     shortbowRapid: false,
     nativeCycleTicks: null,
     farmerWillowCycle: false,
+    threeTickWoodcutCycle: false,
     cookEatInterleave: false,
     mayDie: false
 });
@@ -254,6 +257,18 @@ export function wcTickManipProfile(method: WcTickManip, label = methodLabel('wc'
     }
 }
 
+/** Roll-anchored knife + Make-1 + tree click, the woodcutting analogue of 3-tick fly. */
+export function threeTickWoodcutProfile(): TickManipProfile {
+    return {
+        ...OFF_PROFILE('wc'),
+        method: 'three-tick-wc',
+        label: '3-tick willows (knife + log)',
+        useKnifeDelay: true,
+        threeTickWoodcutCycle: true,
+        nativeCycleTicks: 3
+    };
+}
+
 function methodLabel(skill: TickManipSkill, method: TickManipMethod): string {
     if (method === 'off') {
         return 'Off';
@@ -381,6 +396,27 @@ export function farmerWillowPhase(nowTick: number, cycleStartTick: number): Farm
 /** Whether combat should interrupt a gather wait for the active profile. */
 export function combatBreaksGather(inCombat: boolean, allowCombat: boolean): boolean {
     return inCombat && !allowCombat;
+}
+
+/**
+ * Fletching level needed to knife a log into its first product.
+ * Normal logs offer shafts at 1; oak and above only offer bows.
+ */
+export function fletchingLevelForLog(name: string | null | undefined): number {
+    switch ((name ?? '').trim().toLowerCase()) {
+        case 'oak logs':
+            return 20;
+        case 'willow logs':
+            return 35;
+        case 'maple logs':
+            return 50;
+        case 'yew logs':
+            return 65;
+        case 'magic logs':
+            return 80;
+        default:
+            return 1;
+    }
 }
 
 /** True when name is a fletchable log on this content pack. */

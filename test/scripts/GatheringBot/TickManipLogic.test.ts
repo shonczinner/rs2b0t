@@ -10,6 +10,7 @@ import {
     extraDelayLogsToDrop,
     farmerWillowPhase,
     fishTickManipProfile,
+    fletchingLevelForLog,
     isFletchableLogName,
     isShortbowName,
     knifeDelayPhase,
@@ -221,5 +222,21 @@ describe('tannerfish heuristics', () => {
         expect(
             shouldCookForTannerfish({ rawCount: 1, cookedCount: 4, freeSlots: 10, hpFraction: 1 })
         ).toBe(false);
+    });
+});
+
+describe('fletchingLevelForLog', () => {
+    test('bows need the matching fletching level; normal logs use shafts', () => {
+        expect(fletchingLevelForLog('Logs')).toBe(1);
+        expect(fletchingLevelForLog('Oak logs')).toBe(20);
+        expect(fletchingLevelForLog('Willow logs')).toBe(35);
+        expect(fletchingLevelForLog('Maple logs')).toBe(50);
+        expect(fletchingLevelForLog('Yew logs')).toBe(65);
+        expect(fletchingLevelForLog('Magic logs')).toBe(80);
+    });
+
+    test('unknown or empty falls back to shafts', () => {
+        expect(fletchingLevelForLog(null)).toBe(1);
+        expect(fletchingLevelForLog('Teak logs')).toBe(1);
     });
 });
